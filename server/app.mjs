@@ -3,6 +3,7 @@ import helmet from "helmet";
 import multer from "multer";
 import fs from "node:fs";
 import path from "node:path";
+import { timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { authentication } from "./auth.mjs";
 import {
@@ -376,7 +377,27 @@ export async function createApp(config, options = {}) {
   }).single("file");
   const uploadDir = path.join(config.dataDir, "uploads");
   fs.mkdirSync(uploadDir, { recursive: true });
-  const saveArchive = (req, res) => {
+  const archiveFiles =
+    options.archiveFiles || {
+      async put(name, buffer) {
+        fs.writeFileSync(path.join(uploadDir, name), buffer, {
+          flag: "wx",
+          mode: 0o600,
+        });
+      },
+      async get(name) {
+        try {
+          return fs.readFileSync(path.join(uploadDir, name));
+        } catch (error) {
+          if (error.code === "ENOENT") return null;
+          throw error;
+        }
+      },
+      async delete(name) {
+        fs.rmSync(path.join(uploadDir, name), { force: true });
+      },
+    };
+  const saveArchive = async (req, res) => {
     const before = req.params.id
       ? db.prepare("SELECT * FROM archive WHERE id=?").get(req.params.id)
       : null;
@@ -408,11 +429,7 @@ export async function createApp(config, options = {}) {
             180,
           ),
         };
-        fs.writeFileSync(
-          path.join(uploadDir, stored.storageName),
-          req.file.buffer,
-          { flag: "wx", mode: 0o600 },
-        );
+        await archiveFiles.put(stored.storageName, req.file.buffer);
       }
       requireValue(
         row.note || stored || before?.storage_name,
@@ -460,17 +477,18 @@ export async function createApp(config, options = {}) {
         );
       });
     } catch (error) {
-      if (stored)
-        fs.rmSync(path.join(uploadDir, stored.storageName), { force: true });
+      if (stored) await archiveFiles.delete(stored.storageName).catch(() => {});
       throw error;
     }
     if (stored && before?.storage_name)
-      fs.rmSync(path.join(uploadDir, before.storage_name), { force: true });
+      await archiveFiles.delete(before.storage_name).catch((error) =>
+        console.error("Oud archiefbestand kon niet worden verwijderd."),
+      );
     res.status(before ? 200 : 201).json({ id: row.id });
   };
   app.post("/api/archive", ...w("archive"), upload, saveArchive);
   app.put("/api/archive/:id", ...w("archive"), upload, saveArchive);
-  app.get("/api/archive/:id/file", ...p("archive"), (req, res) => {
+  app.get("/api/archive/:id/file", ...p("archive"), async (req, res) => {
     const row = db
       .prepare("SELECT * FROM archive WHERE id=?")
       .get(req.params.id);
@@ -480,9 +498,11 @@ export async function createApp(config, options = {}) {
     if (req.query.preview === "1" && row.mime.startsWith("image/"))
       res.set("Content-Disposition", "inline");
     else res.attachment(row.filename);
-    res.sendFile(path.join(uploadDir, row.storage_name));
+    const content = await archiveFiles.get(row.storage_name);
+    requireValue(content, 404, "Bestand niet gevonden.");
+    res.send(content);
   });
-  app.delete("/api/archive/:id", ...w("archive"), (req, res) => {
+  app.delete("/api/archive/:id", ...w("archive"), async (req, res) => {
     const row = db
       .prepare("SELECT * FROM archive WHERE id=?")
       .get(req.params.id);
@@ -495,7 +515,7 @@ export async function createApp(config, options = {}) {
       });
     });
     if (row.storage_name)
-      fs.rmSync(path.join(uploadDir, row.storage_name), { force: true });
+      await archiveFiles.delete(row.storage_name).catch(() => {});
     res.json({ ok: true });
   });
   app.post("/api/accounts", ...w("accounts"), async (req, res) => {
@@ -575,6 +595,53 @@ export async function createApp(config, options = {}) {
     });
     res.json({ ok: true });
   });
+  app.post("/api/first-account", async (req, res) => {
+    const expected = Buffer.from(options.bootstrapSecret || "");
+    const supplied = Buffer.from(req.get("x-initial-setup-key") || "");
+    const authorized =
+      options.serverless &&
+      expected.length >= 32 &&
+      expected.length === supplied.length &&
+      timingSafeEqual(expected, supplied);
+    requireValue(authorized, 404, "Deze instelroute is niet beschikbaar.");
+    const count = Number(
+      db.prepare("SELECT COUNT(*) AS count FROM users").get().count,
+    );
+    requireValue(count === 0, 409, "Het eerste account is al aangemaakt.");
+    const username = text(req.body.username, "Gebruikersnaam", 80).toLowerCase();
+    requireValue(
+      /^[\p{L}\p{N}._-]+$/u.test(username),
+      400,
+      "Ongeldige gebruikersnaam.",
+    );
+    const discordId = snowflake(req.body.discordId, "Discord-ID");
+    const password = text(req.body.password, "Tijdelijk wachtwoord", 200);
+    requireValue(
+      password.length >= 12,
+      400,
+      "Het tijdelijke wachtwoord moet minstens 12 tekens bevatten.",
+    );
+    const hash = await hashPassword(password);
+    const userId = id();
+    transaction(db, () => {
+      db.prepare("INSERT INTO users VALUES(?,?,?,?,1,1,?)").run(
+        userId,
+        username,
+        discordId,
+        hash,
+        timestamp(),
+      );
+      audit(
+        db,
+        { id: "first-account-setup", username: "Eerste account" },
+        "account.aangemaakt_via_eerste_instelling",
+        userId,
+        null,
+        { username, discordId },
+      );
+    });
+    res.status(201).json({ ok: true, username });
+  });
   app.put("/api/settings", ...w("settings"), (req, res) => {
     const before = getSettings(db),
       body = req.body,
@@ -632,13 +699,14 @@ export async function createApp(config, options = {}) {
   app.use("/api", (req, res) =>
     res.status(404).json({ error: "Dit API-adres bestaat niet." }),
   );
-  app.use(
-    express.static(publicDir, {
-      index: "index.html",
-      dotfiles: "deny",
-      etag: false,
-    }),
-  );
+  if (!options.serverless)
+    app.use(
+      express.static(publicDir, {
+        index: "index.html",
+        dotfiles: "deny",
+        etag: false,
+      }),
+    );
   app.use((req, res) =>
     res.status(404).type("text").send("Pagina niet gevonden."),
   );
@@ -661,15 +729,17 @@ export async function createApp(config, options = {}) {
             : "Er ging iets mis. Probeer het opnieuw.",
     });
   });
-  const cleanup = setInterval(() => {
-    const now = Date.now();
-    db.prepare("DELETE FROM auth_flows WHERE expires_at<?").run(now);
-    db.prepare("DELETE FROM sessions WHERE expires_at<?").run(now);
-    db.prepare("DELETE FROM rate_limits WHERE expires_at<?").run(now);
-  }, 300000);
-  cleanup.unref();
+  const cleanup = options.serverless
+    ? null
+    : setInterval(() => {
+        const now = Date.now();
+        db.prepare("DELETE FROM auth_flows WHERE expires_at<?").run(now);
+        db.prepare("DELETE FROM sessions WHERE expires_at<?").run(now);
+        db.prepare("DELETE FROM rate_limits WHERE expires_at<?").run(now);
+      }, 300000);
+  cleanup?.unref();
   const syncTimer =
-    config.botToken && !config.demo && !options.discord
+    !options.serverless && config.botToken && !config.demo && !options.discord
       ? setInterval(() => roster.run().catch(() => {}), 300000)
       : null;
   if (syncTimer) {
@@ -685,7 +755,7 @@ export async function createApp(config, options = {}) {
     db,
     roster,
     close() {
-      clearInterval(cleanup);
+      if (cleanup) clearInterval(cleanup);
       if (syncTimer) clearInterval(syncTimer);
       db.close();
     },

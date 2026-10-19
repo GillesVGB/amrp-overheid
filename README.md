@@ -1,18 +1,16 @@
 # Amsterdam Roleplay · Overheidsportaal
 
-Een beveiligde, gedeelde digitale werkplek voor de Amsterdam Roleplay-overheidsdiensten. De interface gebruikt een Windows 11-bureaublad, een Startmenu, een taakbalk en verplaatsbare applicatievensters. Personeelsrollen komen uit Discord; roepnummers en standplaatsen zijn beheerbare werkgegevens.
+Een gedeelde digitale werkplek voor de Amsterdam Roleplay-overheidsdiensten. De interface gebruikt een Windows 11-bureaublad met Startmenu, taakbalk en verplaatsbare applicatievensters. Personeelsrollen komen uit Discord; roepnummers en standplaatsen zijn beheerbare werkgegevens.
 
 ## Wat erin zit
 
-- Inloggen met een intern account én controle van de Discord-identiteit en actuele serverrollen.
+- Inloggen met een intern account en controle van de Discord-identiteit en actuele serverrollen.
 - Politieoverzicht, personeel, rangreeksen, roepnummers, standplaatsen, archief, accounts, instellingen en activiteitenlog.
 - Ambulancewerkplek met afgeschermde RP-meldingen, eenheidstoewijzing, statusupdates en afronding. Voer geen echte medische persoonsgegevens in.
-- Eigenaarrollen in `ROLE_OWNER` hebben blijvend volledige rechten, ook als de gewone ambulancewerkplek is uitgeschakeld.
-- Discord-personeelsynchronisatie op de achtergrond en handmatig door bevoegde korpsleiding.
-- Rolniveaus en Discord-rangrollen zijn vooraf ingesteld in `server/discord-config.json` en `server/discord-ranks.json`.
-- Automatische roepnummertoewijzing wordt alleen gedaan wanneer de Discord-naam bij een bestaand vrij nummer in de juiste rang past. Onzekere nummers verschijnen als controlepunt.
-- Discord bevat geen betrouwbare standplaatsinformatie. De korpsleiding vult de standplaats in via Personeel of Roepnummers.
-- SQLite slaat gegevens en uploads op in `data/`. Zet die map op een blijvend volume bij hosting.
+- Eigenaarrollen in `ROLE_OWNER` hebben volledige rechten.
+- Achtergrondsynchronisatie met Discord en handmatige synchronisatie door bevoegde korpsleiding.
+- Rangrollen zijn vooraf ingesteld in `server/discord-config.json` en `server/discord-ranks.json`.
+- Automatische roepnummertoewijzing gebeurt alleen wanneer de Discord-naam bij een bestaand vrij nummer in de juiste rang past. Onzekere nummers verschijnen als controlepunt.
 
 ## Lokaal bekijken
 
@@ -23,27 +21,31 @@ npm ci
 npm run dev:demo
 ```
 
-Open daarna `http://127.0.0.1:4401`. De demo gebruikt alleen verzonnen personeelsgegevens en een afgeschermde loopbackverbinding. De demoaccounts zijn `beheer`, `leiding` en `agent`; het demonstratiewachtwoord staat in de startmelding. Gebruik deze demoaccounts nooit in productie.
+Open daarna `http://127.0.0.1:4401`. De demo gebruikt verzonnen personeelsgegevens en is alleen bereikbaar via de eigen computer. De demoaccounts zijn `beheer`, `leiding` en `agent`; het demonstratiewachtwoord staat in de startmelding. Gebruik deze demoaccounts nooit in productie.
 
-## Beveiligde productie-installatie
+## Deployen naar Netlify
 
-Deze app gebruikt sessies, bestanden en SQLite-opslag. Host haar op een VPS of andere server met blijvende opslag en HTTPS. Een statische Netlify-site is geen geschikte plek voor deze backend.
+De productie-app draait als Netlify Function. De bijbehorende instellingen staan in `netlify.toml`; Netlify serveert de bestanden uit `public/` en stuurt `/api/*` en `/auth/*` naar de Express-function. De app bewaart de SQLite-databasesnapshot in Netlify Database (PostgreSQL) en archiefbestanden in Netlify Blobs. Verzoeken worden voor de database één voor één verwerkt, zodat deze bestaande SQLite-app met de serverless omgeving kan werken. Dit is bedoeld voor een kleine roleplay-omgeving; bij veel gelijktijdig gebruik is een normale PostgreSQL-datalaag geschikter.
 
-1. Maak in Discord Developer Portal een OAuth2-app en voeg als redirect-URL exact `https://JOUW-DOMEIN/auth/discord/callback` toe. De bot moet lid zijn van de opgegeven Discord-server en leden kunnen lezen.
-2. Kopieer `.env.example` naar `.env`. Vul daarin de publieke origin, OAuth Client ID en Client Secret, bottoken, server-ID en rol-ID's in. Bewaar geheimen alleen in `.env` of de geheime variabelen van je hostingprovider.
-3. Maak een unieke versleutelingssleutel met `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"` en zet die in `TOKEN_ENCRYPTION_KEY`. Bewaar deze sleutel permanent; opgeslagen Discord-sessies kunnen er anders niet meer mee worden gelezen.
-4. Start met Docker Compose: `docker compose up -d --build`. De app luistert intern op poort 4400; publiceer die via een HTTPS-reverseproxy. De map `data/` blijft bewaard tussen herstarts.
-5. Maak op de serverterminal het eerste account met `docker compose exec overheid npm run account:create` (of `npm run account:create` als Node rechtstreeks op de server draait). Het standaardaccount is gekoppeld aan het opgegeven Discord-beheerdersaccount. Het wachtwoord wordt verborgen ingevoerd en moet bij de eerste aanmelding worden gewijzigd.
-6. Controleer in de Discord Developer Portal dat de bot nog in de server staat. Bij een ledenleesfout zet je ook de Server Members Intent aan. De bot hoeft geen beheerdersrechten te krijgen.
+1. Koppel de GitHub-repository `GillesVGB/amrp-overheid` aan Netlify en deploy de branch `main`. De buildinstellingen komen uit `netlify.toml`.
+2. Open in Netlify **Data & Storage → Database** en maak de database voor dit project aan. De function gebruikt de automatisch gekoppelde database. Netlify Blobs wordt bij de eerste function-aanroep aangemaakt.
+3. Stel in Netlify **Project configuration → Environment variables** de productievariabelen in. Zet `APP_ORIGIN` op `https://overheid.amsterdamrp.nl`; genereer `TOKEN_ENCRYPTION_KEY` met `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`. Bewaar dezelfde encryptiesleutel permanent.
 
-Zet `APP_ORIGIN` op de uiteindelijke `https://`-URL voordat je de productie-app start. Die URL moet exact overeenkomen met de OAuth2-redirect-URL. Verwijder of publiceer `.env` nooit; het bestand staat in `.gitignore`.
+   Voeg ook `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN` en `DISCORD_GUILD_ID` toe. De server-ID is `1402056739985162394`. De rollen kunnen in Netlify worden ingesteld als `ROLE_OWNER=1519394039361835239,1519394037423931392`, `ROLE_ADMIN=1519394041165516911`, `ROLE_POLICE=1519394082277953679` en `ROLE_COMMAND=1519394051760066660`. Vul `ROLE_AMBULANCE` in als er een aparte ambulancerol is.
+
+4. Voeg in de Discord Developer Portal bij OAuth2 deze exacte redirect-URL toe: `https://overheid.amsterdamrp.nl/auth/discord/callback`. De bot moet lid zijn van de server en leden kunnen lezen. Geef de bot geen beheerdersrechten.
+5. Voeg tijdelijk de geheime variabele `NETLIFY_BOOTSTRAP_KEY` toe met een zelf gegenereerde willekeurige waarde van minstens 32 tekens. Deploy opnieuw. Maak daarna precies één eerste beheeraccount via `POST https://overheid.amsterdamrp.nl/api/first-account` met JSON-velden `username`, `discordId` en `password`, en met de header `x-initial-setup-key` gelijk aan die tijdelijke sleutel. Het Discord-ID van het beheerdersaccount is `960090714950225970`; kies een tijdelijk wachtwoord van minstens 12 tekens. Verwijder `NETLIFY_BOOTSTRAP_KEY` daarna uit Netlify en deploy opnieuw. De eerste aanmelding vraagt om een nieuw wachtwoord.
+6. Koppel in Netlify het domein `overheid.amsterdamrp.nl` en stel de DNS-records in die Netlify voor het domein toont. Controleer daarna de OAuth-login, Discord-rollen, archiefuploads en scheduled function `discord-sync`.
+
+Bewaar OAuth-secrets, de bottoken, encryptiesleutel en bootstrap-sleutel alleen in Netlify Environment Variables. Zet ze nooit in Git, screenshots of berichten. De scheduled Discord-synchronisatie draait elke vijf minuten. Verzoeken en bestanden blijven beschikbaar bij nieuwe deploys.
 
 ## Handige commando's
 
 ```sh
 npm run check       # controleert JavaScript-syntaxis
 npm test            # integratie- en beveiligingstests
-npm start           # productie-app, met waarden uit .env
+npm run build       # controle voor de Netlify-build
+npm start           # lokale server met waarden uit .env
 ```
 
-Maak periodiek een beveiligde back-up van zowel `data/portal.sqlite` als `data/uploads/`. Beperk toegang tot de back-up tot bevoegde beheerders.
+Voor lokale productie- of Docker-hosting kun je `.env.example` naar `.env` kopiëren en de Discord- en serverwaarden invullen. De map `data/` en uploads moeten dan op een blijvend volume staan. Maak periodiek een beveiligde back-up.

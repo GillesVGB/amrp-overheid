@@ -27,6 +27,7 @@ export function openDatabase(config) {
  CREATE TABLE IF NOT EXISTS categories(id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE);
  CREATE TABLE IF NOT EXISTS archive(id TEXT PRIMARY KEY,title TEXT NOT NULL,category_id TEXT NOT NULL REFERENCES categories(id),description TEXT NOT NULL DEFAULT '',note TEXT NOT NULL DEFAULT '',filename TEXT,mime TEXT,size INTEGER NOT NULL DEFAULT 0,storage_name TEXT,created_by TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS ambulance_calls(id TEXT PRIMARY KEY,call_number TEXT NOT NULL UNIQUE,priority TEXT NOT NULL CHECK(priority IN ('Regulier','Spoed')),status TEXT NOT NULL CHECK(status IN ('Nieuw','Eenheid toegewezen','Onderweg','Ter plaatse','Afgerond')),location TEXT NOT NULL,summary TEXT NOT NULL,unit TEXT NOT NULL DEFAULT '',created_by TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS sync_state(id INTEGER PRIMARY KEY CHECK(id=1),value TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT,actor_id TEXT NOT NULL,actor_name TEXT NOT NULL,action TEXT NOT NULL,target TEXT NOT NULL,before_json TEXT,after_json TEXT,created_at TEXT NOT NULL);
  CREATE INDEX IF NOT EXISTS audit_date ON audit(created_at);
  CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);

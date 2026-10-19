@@ -1,0 +1,27 @@
+[build]
+  command = "npm run build"
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["@netlify/blobs", "@netlify/database", "express", "serverless-http"]
+  region = "eu-central-1"
+
+[[redirects]]
+  from = "/api"
+  to = "/.netlify/functions/portal/api"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/portal/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/auth/*"
+  to = "/.netlify/functions/portal/:splat"
+  status = 200
+  force = true
