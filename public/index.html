@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#092c53" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Overheidsportaal • Amsterdam</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="stylesheet" href="/css/windows11.css" />
+  </head>
+  <body>
+    <div class="wallpaper" aria-hidden="true">
+      <div class="window-light"><i></i><i></i><i></i><i></i></div>
+      <div class="skyline"></div>
+    </div>
+
+    <section id="loading" class="loading-screen" hidden aria-live="polite">
+      <div class="spinner"></div>
+      <h2>Welkom op je werkplek</h2>
+      <p>Beveiligde overheidsomgeving laden...</p>
+    </section>
+    <section id="desktop" hidden aria-label="Overheidsbureaublad">
+      <div class="desktop-top">
+        <span class="desktop-seal">A<span>|||</span></span>
+        <div>
+          <strong id="environment-name">Amsterdam • Overheid</strong
+          ><span>Digitale werkplek</span>
+        </div>
+        <div id="desktop-session" class="desktop-session"></div>
+      </div>
+      <div id="desktop-icons" class="desktop-icons"></div>
+      <div class="desktop-watermark">
+        AMSTERDAM<small>SAMEN VOOR DE STAD.</small>
+      </div>
+      <div id="demo-banner" class="demo-banner" hidden>
+        LOKALE DEMO • testaccounts • geen echte Discord-identiteit
+      </div>
+      <section
+        id="app-window"
+        class="app-window"
+        hidden
+        aria-label="Applicatievenster"
+      >
+        <header id="window-titlebar" class="window-titlebar">
+          <span id="window-title"></span>
+          <div class="window-controls">
+            <button data-action="minimize" aria-label="Minimaliseren">−</button
+            ><button data-action="maximize" aria-label="Venster maximaliseren">
+              □</button
+            ><button data-action="close-window" aria-label="Venster sluiten">
+              ×
+            </button>
+          </div>
+        </header>
+        <div id="app-body"></div>
+      </section>
+      <nav
+        id="start-menu"
+        class="start-menu"
+        hidden
+        aria-label="Startmenu"
+      ></nav>
+      <footer class="taskbar">
+        <button
+          id="start-button"
+          class="start-button"
+          aria-label="Startmenu"
+          aria-expanded="false"
+          data-icon="windows"
+        ></button
+        ><label class="taskbar-search"
+          ><span data-icon="search"></span
+          ><input
+            id="desktop-search"
+            type="search"
+            placeholder="Typ hier om te zoeken"
+            aria-label="Applicaties zoeken"
+        /></label>
+        <div id="pinned-apps" class="pinned-apps"></div>
+        <div class="system-tray">
+          <button
+            id="quick-settings-button"
+            class="quick-settings-button"
+            aria-label="Netwerk en beveiliging"
+            aria-expanded="false"
+            title="Netwerk en beveiliging"
+          >
+            <span data-icon="wifi"></span
+            ><span data-icon="volume"></span></button
+          ><button id="clock-button" aria-label="Datum en tijd">
+            <span id="clock-time"></span><small id="clock-date"></small></button
+          ><button
+            id="notifications-button"
+            aria-label="Systeeminformatie"
+            data-icon="bell"
+          ></button>
+        </div>
+      </footer>
+      <section
+        id="quick-settings"
+        class="quick-settings"
+        hidden
+        aria-label="Snelle instellingen"
+      >
+        <div class="quick-settings-heading">
+          <strong>Snelle instellingen</strong
+          ><span id="network-state">Verbonden</span>
+        </div>
+        <div class="quick-settings-grid">
+          <div class="quick-status-card">
+            <span data-icon="wifi"></span>
+            <div>
+              <strong>Netwerk</strong
+              ><small id="network-detail">Internet beschikbaar</small>
+            </div>
+          </div>
+          <div class="quick-status-card">
+            <span data-icon="shield"></span>
+            <div>
+              <strong>Werkplek</strong><small>Discord-identiteit actief</small>
+            </div>
+          </div>
+        </div>
+        <div class="quick-settings-footer">
+          <span id="quick-settings-name">Amsterdam • Overheid</span
+          ><span data-icon="settings"></span>
+        </div>
+      </section>
+    </section>
+    <dialog id="dialog">
+      <form id="modal-form">
+        <header>
+          <div>
+            <span id="modal-eyebrow">OVERHEIDSPORTAAL</span>
+            <h2 id="modal-title"></h2>
+          </div>
+          <button
+            type="button"
+            data-action="close-modal"
+            class="icon-button"
+            aria-label="Sluiten"
+            data-icon="close"
+          ></button>
+        </header>
+        <div id="modal-body"></div>
+        <p id="modal-error" role="alert"></p>
+        <footer>
+          <button
+            type="button"
+            class="button secondary"
+            data-action="close-modal"
+          >
+            Annuleren</button
+          ><button id="modal-save" type="submit" class="button primary">
+            Opslaan
+          </button>
+        </footer>
+      </form>
+    </dialog>
+    <div id="toast" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="/js/desktop.js"></script>
+  </body>
+</html>

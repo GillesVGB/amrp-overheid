@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#092c53" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Aanmelden • Overheidsportaal</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="stylesheet" href="/css/windows11.css" />
+  </head>
+  <body>
+    <div class="wallpaper" aria-hidden="true">
+      <div class="window-light"><i></i><i></i><i></i><i></i></div>
+      <div class="skyline"></div>
+    </div>
+    <section id="login" class="login-screen" aria-labelledby="login-name">
+      <div class="login-brand">
+        <span class="brand-mark">A<span>|||</span></span>
+        <div>GEMEENTE AMSTERDAM<small>Beveiligde overheidsomgeving</small></div>
+      </div>
+      <div class="login-center">
+        <div class="account-avatar" data-icon="user"></div>
+        <h1 id="login-name">Gebruiker</h1>
+        <p class="login-subtitle">Meld je aan op je overheidswerkplek.</p>
+        <button id="other-user" class="login-choice">
+          Andere gebruiker <span data-icon="arrow"></span>
+        </button>
+        <form id="login-form">
+          <label class="sr-only" for="username"
+            >Gebruikersnaam of Discord-naam</label
+          ><input
+            id="username"
+            name="username"
+            autocomplete="username"
+            placeholder="Gebruikersnaam of Discord-naam"
+            value="gilles"
+            hidden
+            required
+            maxlength="80"
+          /><label class="sr-only" for="password">Wachtwoord</label>
+          <div class="password-input">
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Wachtwoord"
+              required
+              maxlength="128"
+            /><button
+              type="submit"
+              aria-label="Aanmelden"
+              title="Aanmelden"
+              data-icon="arrow"
+            ></button>
+          </div>
+          <p class="login-help">
+            Je overheidsaccount is gekoppeld aan je Discord-identiteit.
+          </p>
+        </form>
+        <p id="login-error" class="login-error" role="alert"></p>
+        <a
+          id="discord-connect"
+          class="discord-connect"
+          hidden
+          href="/auth/discord/start"
+          >Identiteit bevestigen met Discord <span data-icon="discord"></span
+        ></a>
+        <p id="setup-notice" class="setup-notice" hidden>
+          Discord-login moet nog door de beheerder worden ingesteld.
+        </p>
+      </div>
+      <div class="login-bottom">
+        <div class="login-accounts">
+          <button class="login-profile selected" id="default-account">
+            <span data-icon="user"></span> Gebruiker</button
+          ><button class="login-profile" id="switch-account">
+            <span data-icon="user"></span> Andere gebruiker
+          </button>
+        </div>
+        <div class="login-system">
+          <span>NLD</span
+          ><button
+            aria-label="Netwerkstatus"
+            id="login-network"
+            data-icon="wifi"
+          ></button
+          ><button
+            aria-label="Toegankelijkheid"
+            id="login-accessibility"
+            data-icon="accessibility"
+          ></button
+          ><button
+            aria-label="Aanmeldopties"
+            id="login-power"
+            data-icon="power"
+          ></button>
+        </div>
+      </div>
+    </section>
+    <script type="module" src="/js/login.js"></script>
+  </body>
+</html>

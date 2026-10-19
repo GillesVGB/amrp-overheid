@@ -1,0 +1,45 @@
+const paths = {
+  windows: "M2 3 10 2v8H2zm10-1L22 1v9H12zM2 12h8v8l-8-1zm10 0h10v11l-10-2z",
+  shield: "M12 2 3 6v6c0 5 9 10 9 10s9-5 9-10V6z",
+  pc: "M3 3h18v13H3zM8 21h8m-4-5v5",
+  users:
+    "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.87M15 3.13a4 4 0 0 1 0 7.75M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
+  user: "M20 22v-3a8 8 0 0 0-16 0v3M17 6a5 5 0 1 1-10 0 5 5 0 0 1 10 0",
+  power: "M12 2v10M6 5a9 9 0 1 0 12 0",
+  accessibility: "M12 2h.01M4 7h16m-8 0v8m-4 7 4-7 4 7M8 7l-1 7m9-7 1 7",
+  grid: "M3 3h7v7H3zm11 0h7v7h-7zM3 14h7v7H3zm11 0h7v7h-7z",
+  table: "M3 3h18v18H3zM3 9h18M9 3v18m6-12v12M3 15h18",
+  folder: "M3 5h6l2 3h10v12H3z",
+  settings:
+    "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M9 2h6l1 4 4 1 2 5-3 3v5l-5 2-3-3-5 1-3-5 2-4-1-5 5-2z",
+  search: "M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
+  lock: "M5 10h14v12H5zm3 0V6a4 4 0 0 1 8 0v4m-4 4v3",
+  logout: "M9 3H3v18h6m4-14 5 5-5 5m-7-5h12",
+  copy: "M8 8h13v13H8zM16 5V2H2v14h3",
+  plus: "M12 5v14M5 12h14",
+  edit: "m16 3 5 5-12 12H4v-5zm-2 2 5 5",
+  trash: "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7",
+  chevron: "m9 5 7 7-7 7",
+  arrow: "M5 12h14m-6-6 6 6-6 6",
+  clock: "M12 8v5l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0",
+  file: "M4 2h10l6 6v14H4zm10 0v7h6M8 13h8m-8 4h8",
+  upload: "M12 16V3m-5 5 5-5 5 5M3 16v5h18v-5",
+  download: "M12 3v13m-5-5 5 5 5-5M3 16v5h18v-5",
+  check: "m5 12 4 4L19 6",
+  close: "M6 6l12 12M6 18 18 6",
+  bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 10h18c0-3-3-3-3-10m-12 13h6",
+  wifi: "M2 8a16 16 0 0 1 20 0M5 12a11 11 0 0 1 14 0m-11 4a6 6 0 0 1 8 0m-4 4h.01",
+  volume: "M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7m3-10a9 9 0 0 1 0 13",
+  menu: "M3 6h18M3 12h18M3 18h18",
+  ambulance:
+    "M2 6h12v13H2zm12 5h5l3 5v3h-8M6 9v6m-3-3h6M8 21a2 2 0 1 0 0-4 2 2 0 0 0 0 4m10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4",
+  help: "M9 8a3 3 0 0 1 6 0c0 2-3 2-3 5m0 4h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0",
+  refresh: "M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 1M5 17a8 8 0 0 0 13 1",
+  alert: "M12 3 2 21h20L12 3zm0 6v5m0 3h.01",
+  activity: "M2 12h4l3-8 5 16 4-8h4",
+  badge: "m12 2 3 5 6 1-4 5 1 7-6-3-6 3 1-7-4-5 6-1z",
+  discord:
+    "M7 5 3 6 1 17l6 3 2-3m8-12 4 1 2 11-6 3-2-3M6 14h.01M17 14h.01M7 17c3 1 7 1 10 0M7 5c3-1 7-1 10 0",
+};
+export const icon = (name, cls = "") =>
+  `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name] || paths.file}"/></svg>`;

@@ -1,0 +1,31 @@
+[
+  {
+    "code": "01",
+    "label": "Eerste Hoofd Commissaris",
+    "roleId": "1519394055078023259"
+  },
+  {
+    "code": "02",
+    "label": "Hoofd Commissaris",
+    "roleId": "1519394060291411968"
+  },
+  { "code": "03", "label": "Commissaris", "roleId": "1519394061340115085" },
+  { "code": "04", "label": "Politie Leiding", "roleId": "1519394056189378652" },
+  {
+    "code": "05",
+    "label": "Hoofd Commandeur",
+    "roleId": "1519394067153162314"
+  },
+  { "code": "06", "label": "Commandeur", "roleId": "1519394068998783227" },
+  {
+    "code": "07",
+    "label": "Hoofd Inspecteur",
+    "roleId": "1519394070043164823"
+  },
+  { "code": "08", "label": "Inspecteur", "roleId": "1519394072069013595" },
+  { "code": "09", "label": "Brigadier", "roleId": "1519394074166165585" },
+  { "code": "10", "label": "Hoofd Agent", "roleId": "1519394075369803786" },
+  { "code": "11", "label": "Agent", "roleId": "1519394076531626044" },
+  { "code": "12", "label": "Surveillant", "roleId": "1519394079023173913" },
+  { "code": "13", "label": "Aspirant", "roleId": "1519394080218681375" }
+]

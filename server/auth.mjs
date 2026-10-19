@@ -1,0 +1,479 @@
+import {
+  token,
+  digest,
+  encrypt,
+  decrypt,
+  cookieMap,
+  permissions,
+  HttpError,
+  requireValue,
+  verifyPassword,
+  text,
+} from "./security.mjs";
+import { getSettings, publicUser, audit } from "./database.mjs";
+const API = "https://discord.com/api/v10";
+export function authentication({
+  db,
+  config,
+  discord,
+  clock = Date.now,
+  request = fetch,
+}) {
+  const cookies = {
+    httpOnly: true,
+    secure: config.production,
+    sameSite: "lax",
+    path: "/",
+  };
+  const sessionName = config.production ? "__Host-gov-session" : "gov-session";
+  const flowName = config.production ? "__Host-gov-flow" : "gov-flow";
+  const verifiedMembers = new Map();
+  const pendingMembers = new Map();
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const clear = (res) => {
+    res.clearCookie(sessionName, cookies);
+    res.clearCookie(flowName, cookies);
+  };
+  function limit(key, max = 10, window = 15 * 60e3) {
+    const now = clock(),
+      row = db.prepare("SELECT * FROM rate_limits WHERE key=?").get(key);
+    if (!row || row.expires_at <= now)
+      db.prepare("INSERT OR REPLACE INTO rate_limits VALUES(?,?,?)").run(
+        key,
+        1,
+        now + window,
+      );
+    else {
+      requireValue(
+        row.count < max,
+        429,
+        "Te veel pogingen. Probeer het over 15 minuten opnieuw.",
+      );
+      db.prepare("UPDATE rate_limits SET count=count+1 WHERE key=?").run(key);
+    }
+  }
+  async function api(endpoint, accessToken) {
+    let response;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        response = await request(API + endpoint, {
+          headers: { Authorization: "Bearer " + accessToken },
+          signal: AbortSignal.timeout(8000),
+        });
+      } catch (error) {
+        if (attempt === 0) {
+          await wait(250);
+          continue;
+        }
+        console.warn(
+          "Discord API-controle mislukt:",
+          error.code || error.name || "onbekend",
+        );
+        throw new HttpError(
+          503,
+          "Discord kan je rechten nu niet controleren. Probeer later opnieuw.",
+        );
+      }
+      if (response.ok || [401, 403, 404].includes(response.status)) break;
+      if (attempt > 0 || (response.status !== 429 && response.status < 500))
+        break;
+      const retryAfter = Number(response.headers.get("retry-after"));
+      const delay =
+        response.status === 429 && Number.isFinite(retryAfter)
+          ? retryAfter * 1000
+          : 250;
+      if (delay > 2000) break;
+      await wait(Math.max(100, delay));
+    }
+    if (response.status === 401)
+      throw new HttpError(
+        401,
+        "Je Discord-koppeling is verlopen. Meld opnieuw aan.",
+      );
+    if (response.status === 404 || response.status === 403)
+      throw new HttpError(403, "Je bent geen lid van de overheids-Discord.");
+    requireValue(
+      response.ok,
+      503,
+      "Discord kan je rechten nu niet controleren. Probeer later opnieuw.",
+    );
+    return response.json();
+  }
+  async function exchange(params) {
+    const response = await request(API + "/oauth2/token", {
+      method: "POST",
+      body: new URLSearchParams({
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        ...params,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    requireValue(
+      response.ok,
+      401,
+      "Discord-koppeling is verlopen. Meld opnieuw aan.",
+    );
+    return response.json();
+  }
+  async function member(tokens) {
+    if (discord) return discord.member(tokens);
+    if (tokens.expiresAt <= clock() + 30000) {
+      const value = await exchange({
+        grant_type: "refresh_token",
+        refresh_token: tokens.refreshToken,
+      });
+      tokens = {
+        accessToken: value.access_token,
+        refreshToken: value.refresh_token,
+        expiresAt: clock() + value.expires_in * 1000,
+      };
+    }
+    const key = digest(tokens.accessToken);
+    const cached = verifiedMembers.get(key);
+    if (cached && cached.expiresAt > clock())
+      return { ...cached.value, tokens };
+    verifiedMembers.delete(key);
+    let check = pendingMembers.get(key);
+    if (!check) {
+      check = (async () => {
+        const identity = await api("/users/@me", tokens.accessToken);
+        const membership = await api(
+          `/users/@me/guilds/${config.guildId}/member`,
+          tokens.accessToken,
+        );
+        return { identity, roles: membership.roles };
+      })();
+      pendingMembers.set(key, check);
+    }
+    try {
+      const value = await check;
+      for (const [oldKey, entry] of verifiedMembers)
+        if (entry.expiresAt <= clock()) verifiedMembers.delete(oldKey);
+      if (verifiedMembers.size >= 512)
+        verifiedMembers.delete(verifiedMembers.keys().next().value);
+      verifiedMembers.set(key, { value, expiresAt: clock() + 30_000 });
+      return { ...value, tokens };
+    } finally {
+      if (pendingMembers.get(key) === check) pendingMembers.delete(key);
+    }
+  }
+  function createSession(res, user, tokens) {
+    const raw = token(),
+      csrf = token();
+    db.prepare("INSERT INTO sessions VALUES(?,?,?,?,?,?)").run(
+      digest(raw),
+      user.id,
+      csrf,
+      encrypt(tokens, config.key),
+      clock() + 8 * 3600e3,
+      clock(),
+    );
+    res.cookie(sessionName, raw, { ...cookies, maxAge: 8 * 3600e3 });
+    return csrf;
+  }
+  async function auth(req, res, next) {
+    try {
+      const raw = cookieMap(req)[sessionName] || "",
+        hash = digest(raw),
+        session = db.prepare("SELECT * FROM sessions WHERE hash=?").get(hash);
+      requireValue(
+        session &&
+          session.expires_at > clock() &&
+          session.last_seen > clock() - 30 * 60e3,
+        401,
+        "Meld je aan om verder te gaan.",
+      );
+      const user = db
+        .prepare("SELECT * FROM users WHERE id=?")
+        .get(session.user_id);
+      requireValue(user?.enabled, 401, "Dit account is uitgeschakeld.");
+      let verified;
+      try {
+        verified = await member(decrypt(session.tokens, config.key));
+      } catch (error) {
+        if ([401, 403].includes(error.status))
+          db.prepare("DELETE FROM sessions WHERE hash=?").run(hash);
+        throw error;
+      }
+      requireValue(
+        verified.identity.id === user.discord_id,
+        403,
+        "De Discord-identiteit komt niet overeen.",
+      );
+      const settings = getSettings(db),
+        grants = permissions(
+          verified.roles,
+          settings,
+          config.roles.owner || [],
+        );
+      requireValue(
+        Object.values(grants).some(Boolean),
+        403,
+        "Je hebt geen toegangsrol voor deze omgeving.",
+      );
+      db.prepare("UPDATE sessions SET last_seen=?,tokens=? WHERE hash=?").run(
+        clock(),
+        encrypt(verified.tokens, config.key),
+        hash,
+      );
+      req.auth = {
+        user,
+        session,
+        grants,
+        roles: verified.roles,
+        identity: verified.identity,
+        hash,
+      };
+      next();
+    } catch (error) {
+      next(error);
+    }
+  }
+  const csrf = (req, res, next) => {
+    try {
+      requireValue(
+        req.get("origin") === config.origin,
+        403,
+        "Ongeldige herkomst van het verzoek.",
+      );
+      requireValue(
+        req.get("x-csrf-token") === req.auth.session.csrf,
+        403,
+        "Beveiligingscontrole verlopen. Vernieuw de pagina.",
+      );
+      next();
+    } catch (e) {
+      next(e);
+    }
+  };
+  const permit = (name) => (req, res, next) => {
+    try {
+      requireValue(
+        !req.auth.user.must_change,
+        403,
+        "Wijzig eerst je tijdelijke wachtwoord.",
+      );
+      requireValue(
+        req.auth.grants[name],
+        403,
+        "Je hebt geen rechten voor deze handeling.",
+      );
+      next();
+    } catch (e) {
+      next(e);
+    }
+  };
+  const sameOrigin = (req, res, next) => {
+    try {
+      requireValue(
+        req.get("origin") === config.origin,
+        403,
+        "Ongeldige herkomst van het verzoek.",
+      );
+      next();
+    } catch (e) {
+      next(e);
+    }
+  };
+  function install(app) {
+    app.get("/api/health", (req, res) =>
+      res.json({
+        ok: true,
+        discordConfigured: config.discordReady,
+        demo: Boolean(config.demo),
+        service: "Overheidsportaal",
+      }),
+    );
+    app.post("/auth/login", sameOrigin, async (req, res) => {
+      limit("login-ip:" + req.ip, 20);
+      const username = text(
+        req.body.username,
+        "Gebruikersnaam",
+        80,
+      ).toLowerCase();
+      limit("login-user:" + username, 10);
+      const user = db
+        .prepare("SELECT * FROM users WHERE username=?")
+        .get(username);
+      const valid = await verifyPassword(
+        req.body.password,
+        user?.password_hash,
+      );
+      requireValue(
+        user?.enabled && valid,
+        401,
+        "Gebruikersnaam of wachtwoord is onjuist.",
+      );
+      // Development identities only exist in the separately bound loopback demo server.
+      if (discord && config.demo) {
+        const tokens = { demoId: user.discord_id },
+          verified = await member(tokens);
+        requireValue(
+          Object.values(
+            permissions(
+              verified.roles,
+              getSettings(db),
+              config.roles.owner || [],
+            ),
+          ).some(Boolean),
+          403,
+          "Geen toegangsrol.",
+        );
+        createSession(res, user, tokens);
+        audit(db, user, "sessie.aangemeld", user.id);
+        return res.json({ ok: true });
+      }
+      requireValue(
+        config.discordReady,
+        503,
+        "Discord-login is nog niet geconfigureerd door de beheerder.",
+      );
+      const raw = token();
+      db.prepare("INSERT INTO auth_flows VALUES(?,?,?,?)").run(
+        digest(raw),
+        user.id,
+        "preauth",
+        clock() + 5 * 60e3,
+      );
+      res.cookie(flowName, raw, { ...cookies, maxAge: 5 * 60e3 });
+      res.json({ oauthUrl: "/auth/discord/start" });
+    });
+    app.get("/auth/discord/start", (req, res) => {
+      const old = cookieMap(req)[flowName] || "",
+        flow = db
+          .prepare("SELECT * FROM auth_flows WHERE hash=?")
+          .get(digest(old));
+      requireValue(
+        flow?.kind === "preauth" && flow.expires_at > clock(),
+        401,
+        "Meld je eerst aan met je gebruikersnaam en wachtwoord.",
+      );
+      const state = token();
+      db.prepare("DELETE FROM auth_flows WHERE hash=?").run(digest(old));
+      db.prepare("INSERT INTO auth_flows VALUES(?,?,?,?)").run(
+        digest(state),
+        flow.user_id,
+        "oauth",
+        clock() + 5 * 60e3,
+      );
+      res.cookie(flowName, state, { ...cookies, maxAge: 5 * 60e3 });
+      const params = new URLSearchParams({
+        client_id: config.clientId,
+        redirect_uri: config.origin + "/auth/discord/callback",
+        response_type: "code",
+        scope: "identify guilds.members.read",
+        state,
+        prompt: "consent",
+      });
+      res.redirect("https://discord.com/oauth2/authorize?" + params);
+    });
+    app.get("/auth/discord/callback", async (req, res) => {
+      try {
+        const state =
+            typeof req.query.state === "string" ? req.query.state : "",
+          bound = cookieMap(req)[flowName] || "";
+        requireValue(
+          state && state === bound,
+          403,
+          "Discord-aanmelding kon niet worden bevestigd.",
+        );
+        const flow = db
+          .prepare("SELECT * FROM auth_flows WHERE hash=?")
+          .get(digest(state));
+        requireValue(
+          flow?.kind === "oauth" && flow.expires_at > clock(),
+          401,
+          "Deze aanmeldpoging is verlopen.",
+        );
+        db.prepare("DELETE FROM auth_flows WHERE hash=?").run(digest(state));
+        requireValue(
+          !req.query.iss || req.query.iss === "https://discord.com",
+          403,
+          "Ongeldige Discord-provider.",
+        );
+        requireValue(
+          typeof req.query.code === "string",
+          401,
+          "Discord-aanmelding is geannuleerd.",
+        );
+        const value = await exchange({
+          grant_type: "authorization_code",
+          code: req.query.code,
+          redirect_uri: config.origin + "/auth/discord/callback",
+        });
+        const tokens = {
+          accessToken: value.access_token,
+          refreshToken: value.refresh_token,
+          expiresAt: clock() + value.expires_in * 1000,
+        };
+        const verified = await member(tokens);
+        const user = db
+          .prepare("SELECT * FROM users WHERE id=?")
+          .get(flow.user_id);
+        requireValue(
+          user?.enabled && user.discord_id === verified.identity.id,
+          403,
+          "Koppel het Discord-account waarvoor dit overheidsaccount is aangemaakt.",
+        );
+        requireValue(
+          Object.values(
+            permissions(
+              verified.roles,
+              getSettings(db),
+              config.roles.owner || [],
+            ),
+          ).some(Boolean),
+          403,
+          "Je mist een toegangsrol in de overheids-Discord.",
+        );
+        createSession(res, user, verified.tokens);
+        res.clearCookie(flowName, cookies);
+        audit(db, user, "sessie.aangemeld", user.id);
+        res.redirect("/");
+      } catch (error) {
+        res.clearCookie(flowName, cookies);
+        res.redirect(
+          "/login.html?loginError=" +
+            encodeURIComponent(
+              error.status
+                ? error.message
+                : "Discord is tijdelijk niet bereikbaar.",
+            ),
+        );
+      }
+    });
+    app.get("/api/me", auth, (req, res) =>
+      res.json({
+        user: publicUser(req.auth.user),
+        permissions: req.auth.grants,
+        csrf: req.auth.session.csrf,
+        discordName:
+          req.auth.identity.global_name || req.auth.identity.username,
+        settings: { name: getSettings(db).name },
+        demo: Boolean(config.demo),
+      }),
+    );
+    app.post("/auth/logout", sameOrigin, (req, res) => {
+      const hash = digest(cookieMap(req)[sessionName] || "");
+      const session = db
+        .prepare("SELECT * FROM sessions WHERE hash=?")
+        .get(hash);
+      if (session) {
+        requireValue(
+          req.get("x-csrf-token") === session.csrf,
+          403,
+          "Ongeldige beveiligingscode.",
+        );
+        const user = db
+          .prepare("SELECT * FROM users WHERE id=?")
+          .get(session.user_id);
+        db.prepare("DELETE FROM sessions WHERE hash=?").run(hash);
+        if (user) audit(db, user, "sessie.afgemeld", user.id);
+      }
+      clear(res);
+      res.json({ ok: true });
+    });
+  }
+  return { install, auth, csrf, permit, sameOrigin, clear, limit };
+}
