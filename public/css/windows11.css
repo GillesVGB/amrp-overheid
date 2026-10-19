@@ -272,196 +272,245 @@ body:has(#login) .wallpaper {
   backdrop-filter: blur(20px);
 }
 
-/* Sign-in screen: clear hierarchy and safe spacing at every viewport size. */
+/* Windows sign-in: full-screen wallpaper, centered profile and system tray. */
+body:has(#login) .wallpaper {
+  filter: saturate(1.08);
+  transform: none;
+}
 body:has(#login) .login-screen {
   box-sizing: border-box;
-  height: auto;
-  min-height: 100dvh;
-  padding: 104px 22px 138px;
-  background: linear-gradient(135deg, #061a32a8, #082b4d65 55%, #03162e9c);
-  overflow: auto;
+  height: 100dvh;
+  min-height: 520px;
+  padding: 0 20px 70px;
+  overflow: hidden;
+  background:
+    linear-gradient(0deg, #00132f79 0, transparent 22%),
+    linear-gradient(90deg, #001d3a12, #001d3a0a);
 }
-body:has(#login) .login-brand {
-  display: flex;
-  left: clamp(22px, 4vw, 56px);
-  top: clamp(20px, 4vh, 38px);
-  font-size: 11px;
-  text-shadow: 0 2px 12px #00152e;
-}
-body:has(#login) .login-brand small {
-  display: block;
+body:has(#login) .login-brand,
+body:has(#login) .login-subtitle,
+body:has(#login) .login-help {
+  display: none;
 }
 body:has(#login) .login-center {
   box-sizing: border-box;
-  width: min(420px, 100%);
-  margin: 0;
-  padding: 32px clamp(24px, 5vw, 42px) 28px;
-  border: 1px solid #d8e9ff38;
-  border-radius: 22px;
-  background: linear-gradient(145deg, #102a47c9, #071a31bb);
-  box-shadow:
-    0 26px 90px #00132e6b,
-    inset 0 1px #ffffff1c;
-  backdrop-filter: blur(24px) saturate(1.2);
+  width: min(320px, calc(100vw - 40px));
+  margin: -12px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
   text-align: center;
 }
 body:has(#login) .account-avatar {
-  width: 82px;
-  height: 82px;
-  margin-bottom: 18px;
-  background: linear-gradient(145deg, #ffffff39, #b7d7fa1c);
-  border: 1px solid #e7f3ff62;
-  box-shadow:
-    0 8px 24px #00132955,
-    inset 0 1px #ffffff2c;
+  width: 128px;
+  height: 128px;
+  margin-bottom: 13px;
+  background: #dcecff55;
+  border: 1px solid #ffffff4a;
+  box-shadow: 0 1px 12px #00142a22;
 }
 body:has(#login) .account-avatar .icon {
-  width: 46px;
-  height: 46px;
+  width: 74px;
+  height: 74px;
+  stroke-width: 1.1;
 }
 body:has(#login) .login-center h1 {
-  margin: 0;
-  font-size: clamp(26px, 5vw, 32px);
-  line-height: 1.2;
-  font-weight: 500;
+  margin: 0 0 19px;
+  font-size: clamp(27px, 4vw, 34px);
+  line-height: 1.15;
+  font-weight: 400;
+  letter-spacing: 0;
   overflow-wrap: anywhere;
-  text-shadow: 0 2px 14px #00152e88;
-}
-body:has(#login) .login-subtitle {
-  display: block;
-  margin: 9px 0 22px;
-  color: #d8e7f8;
-  font-size: 13px;
-  line-height: 1.6;
+  text-shadow: 0 1px 8px #00132e55;
 }
 body:has(#login) .login-center input {
   box-sizing: border-box;
-  min-height: 48px;
-  padding: 12px 14px;
-  border: 1px solid #dcecff7a;
-  border-radius: 9px;
-  background: #f4f8fdf2;
-  color: #152b42;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid #f3f8ff9c;
+  border-radius: 0;
+  background: #062c5ad9;
+  color: #fff;
   font-size: 14px;
-  box-shadow: 0 2px 8px #00162b24;
+  box-shadow: none;
 }
 body:has(#login) .login-center input::placeholder {
-  color: #62768c;
+  color: #eef5ffbd;
 }
 body:has(#login) .login-center input:focus-visible {
-  outline: 3px solid #86c7ff;
-  outline-offset: 2px;
-  border-color: white;
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+  border-color: #fff;
 }
 body.high-contrast:has(#login) .login-center input {
   border: 2px solid white;
   background: black;
   color: white;
 }
+body:has(#login) #username {
+  margin-bottom: 7px;
+}
 body:has(#login) .password-input {
-  margin-top: 12px;
-  border: 1px solid #dcecff7a;
-  border-radius: 9px;
-  box-shadow: 0 2px 8px #00162b24;
+  height: 38px;
+  margin-top: 0;
+  border: 1px solid #f3f8ffb0;
+  border-radius: 0;
+  border-bottom: 2px solid #d9edff;
+  box-shadow: 0 1px 4px #00152e38;
 }
 body:has(#login) .password-input input {
-  min-height: 48px;
+  min-height: 36px;
   border: 0;
-  border-radius: 8px 0 0 8px;
+  border-radius: 0;
+  background: #062c5ae8;
   box-shadow: none;
 }
 body:has(#login) .password-input button {
-  width: 48px;
+  width: 38px;
   border: 0;
-  border-left: 1px solid #dcecff7a;
-  border-radius: 0 8px 8px 0;
-  background: #ffffff22;
+  border-left: 1px solid #e9f4ff92;
+  border-radius: 0;
+  background: #ffffff24;
 }
 body:has(#login) .password-input button:hover {
-  background: #2185e9;
-}
-body:has(#login) .login-help {
-  display: block;
-  margin: 14px 0 0;
-  color: #c9d9ed;
-  font-size: 11px;
-  line-height: 1.7;
+  background: #1479d4;
 }
 body:has(#login) .login-choice {
-  display: inline-flex;
-  margin: -8px 0 15px;
-  padding: 7px 12px;
-  border: 1px solid #dcecff4a;
-  border-radius: 8px;
-  background: #ffffff10;
-  font-size: 12px;
-}
-body:has(#login) .login-choice[hidden] {
   display: none;
 }
 body:has(#login) .login-register-toggle,
 body:has(#login) .register-cancel {
-  margin-top: 12px;
-  color: #e4efff;
+  margin-top: 11px;
+  color: #fff;
   font-size: 12px;
+  text-shadow: 0 1px 4px #00152e;
+}
+body:has(#login) .register-submit {
+  border: 1px solid #e4f1ffad;
+  border-radius: 0;
+  background: #075cae;
+  color: #fff;
 }
 body:has(#login) .login-error,
 body:has(#login) .setup-notice,
 body:has(#login) .discord-connect {
-  border-radius: 10px;
+  border-radius: 2px;
+  text-shadow: 0 1px 3px #00152e;
 }
 body:has(#login) .login-bottom {
-  left: clamp(14px, 3vw, 32px);
-  right: clamp(14px, 3vw, 32px);
-  bottom: clamp(12px, 2vh, 22px);
+  left: 20px;
+  right: 20px;
+  bottom: 18px;
+}
+body:has(#login) .login-accounts {
+  gap: 2px;
 }
 body:has(#login) .login-profile {
-  min-width: 150px;
+  box-sizing: border-box;
+  width: 195px;
+  min-width: 0;
+  min-height: 42px;
+  padding: 5px 10px;
+  gap: 11px;
   border: 1px solid transparent;
+  border-radius: 3px;
+  font-size: 13px;
+  text-align: left;
+}
+body:has(#login) .login-profile > .icon {
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 5px;
+  background: #dcecff68;
+  border-radius: 50%;
+}
+body:has(#login) .login-profile.selected {
+  background: #0755b9e8;
+  border-color: #6fb5ff40;
+  backdrop-filter: none;
+}
+body:has(#login) .login-profile:hover:not(.selected) {
+  background: #ffffff20;
+}
+body:has(#login) .login-system {
+  gap: 13px;
+  color: #fff;
+  text-shadow: 0 1px 4px #00152e;
+}
+body:has(#login) .login-system > span {
+  display: none;
+}
+body:has(#login) .login-system button {
+  padding: 6px;
+  border-radius: 2px;
+}
+body:has(#login) .login-system .icon {
+  width: 20px;
+  height: 20px;
 }
 body:has(#login) .login-profile:focus-visible,
 body:has(#login) .login-system button:focus-visible,
 body:has(#login) .password-input button:focus-visible {
-  outline: 2px solid #a7d7ff;
+  outline: 2px solid #fff;
   outline-offset: 2px;
 }
 @media (max-width: 600px) {
   body:has(#login) .login-screen {
-    padding: 96px 16px 150px;
-  }
-  body:has(#login) .login-brand {
-    left: 18px;
-    top: 20px;
+    min-height: 480px;
+    padding: 0 14px 92px;
   }
   body:has(#login) .login-center {
-    padding: 26px 22px 24px;
-    border-radius: 18px;
+    width: min(320px, calc(100vw - 32px));
+  }
+  body:has(#login) .account-avatar {
+    width: 112px;
+    height: 112px;
+  }
+  body:has(#login) .account-avatar .icon {
+    width: 65px;
+    height: 65px;
   }
   body:has(#login) .login-bottom {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
     align-items: flex-end;
   }
   body:has(#login) .login-profile {
-    min-width: 0;
+    width: 156px;
+    min-height: 38px;
+    padding: 3px 6px;
+    gap: 7px;
     font-size: 11px;
   }
-}
-@media (max-height: 680px) and (min-width: 601px) {
-  body:has(#login) .login-screen {
-    padding-top: 84px;
-    padding-bottom: 112px;
+  body:has(#login) .login-profile > .icon {
+    width: 28px;
+    height: 28px;
   }
-  body:has(#login) .login-center {
-    padding-top: 22px;
-    padding-bottom: 20px;
+  body:has(#login) .login-system {
+    gap: 4px;
+  }
+}
+@media (max-height: 620px) and (min-width: 601px) {
+  body:has(#login) .login-screen {
+    min-height: 0;
+    padding-bottom: 58px;
   }
   body:has(#login) .account-avatar {
-    width: 64px;
-    height: 64px;
-    margin-bottom: 12px;
+    width: 94px;
+    height: 94px;
+    margin-bottom: 8px;
   }
   body:has(#login) .account-avatar .icon {
-    width: 36px;
-    height: 36px;
+    width: 56px;
+    height: 56px;
+  }
+  body:has(#login) .login-center h1 {
+    margin-bottom: 12px;
   }
 }
 .desktop-top,
