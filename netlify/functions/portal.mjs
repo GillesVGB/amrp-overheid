@@ -1,8 +1,8 @@
 import serverless from "serverless-http";
-import { app } from "../../server/netlify-runtime.mjs";
-import { withPortalState } from "../../server/netlify-runtime.mjs";
+import { app, withPortalState } from "../../server/netlify-runtime.mjs";
+import { bridgeRequest } from "../../server/netlify-function-adapter.mjs";
 
 const proxy = serverless(app);
 
-export const handler = (event, context) =>
-  withPortalState(() => proxy(event, context));
+export default async (request, context) =>
+  withPortalState(() => bridgeRequest(request, context, proxy));
