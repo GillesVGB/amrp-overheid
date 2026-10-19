@@ -9,7 +9,7 @@ const rememberedUsername = (() => {
     return "";
   }
 })();
-const defaultUsername = rememberedUsername || "gilles";
+const defaultUsername = rememberedUsername;
 function rememberUsername(value) {
   try {
     localStorage.setItem("amrp-last-username", value.trim());
@@ -26,15 +26,18 @@ try {
 } catch {
   // Use the default wallpaper when storage is unavailable.
 }
-$("default-account-name").textContent = defaultUsername;
+$("default-account-name").textContent = defaultUsername || "Gebruiker";
 $("login-name").textContent = rememberedUsername || "Gebruiker";
 $("username").value = defaultUsername;
+$("username").hidden = Boolean(rememberedUsername);
 document
   .querySelectorAll("[data-icon]")
   .forEach((el) => (el.innerHTML = icon(el.dataset.icon)));
 $("other-user").addEventListener("click", () => {
   $("login-form").hidden = false;
   $("other-user").hidden = true;
+  $("username").hidden = false;
+  $("username").value = "";
   $("username").focus();
 });
 $("switch-account").addEventListener("click", () => {
@@ -49,12 +52,13 @@ $("switch-account").addEventListener("click", () => {
     .forEach((x) => x.classList.toggle("selected", x.id === "switch-account"));
 });
 $("default-account").addEventListener("click", () => {
-  $("login-name").textContent = defaultUsername;
+  $("login-name").textContent = defaultUsername || "Gebruiker";
   $("login-form").hidden = false;
   $("other-user").hidden = true;
-  $("username").hidden = true;
+  $("username").hidden = Boolean(defaultUsername);
   $("username").value = defaultUsername;
-  $("password").focus();
+  if (defaultUsername) $("password").focus();
+  else $("username").focus();
   document
     .querySelectorAll(".login-profile")
     .forEach((x) => x.classList.toggle("selected", x.id === "default-account"));
