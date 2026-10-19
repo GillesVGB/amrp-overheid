@@ -59,6 +59,40 @@
             Je overheidsaccount is gekoppeld aan je Discord-identiteit.
           </p>
         </form>
+        <button
+          id="register-toggle"
+          class="login-register-toggle"
+          type="button"
+          hidden
+        >
+          Nieuw bij politie of ambulance? Account aanmaken
+        </button>
+        <form id="register-form" hidden>
+          <label class="sr-only" for="register-username"
+            >Nieuwe gebruikersnaam</label
+          >
+          <input
+            id="register-username"
+            name="username"
+            autocomplete="username"
+            placeholder="Kies een gebruikersnaam"
+            required
+            maxlength="80"
+          />
+          <p class="login-help">
+            Je Discord-lidmaatschap en dienstrol worden gecontroleerd. Je stelt
+            daarna zelf een wachtwoord in. Ambulanceaccounts kunnen aanmelden
+            zodra de eigenaar de ambulancewerkplek heeft ingeschakeld.
+          </p>
+          <div class="register-actions">
+            <button type="submit" class="register-submit">
+              Doorgaan met Discord
+            </button>
+            <button id="register-cancel" type="button" class="register-cancel">
+              Terug naar aanmelden
+            </button>
+          </div>
+        </form>
         <p id="login-error" class="login-error" role="alert"></p>
         <a
           id="discord-connect"
@@ -74,7 +108,8 @@
       <div class="login-bottom">
         <div class="login-accounts">
           <button class="login-profile selected" id="default-account">
-            <span data-icon="user"></span> Gebruiker</button
+            <span data-icon="user"></span>
+            <span id="default-account-name">Gebruiker</span></button
           ><button class="login-profile" id="switch-account">
             <span data-icon="user"></span> Andere gebruiker
           </button>

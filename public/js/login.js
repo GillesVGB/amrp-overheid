@@ -2,6 +2,33 @@ import { icon } from "./icons.js";
 import { createApi } from "./api.js";
 const $ = (id) => document.getElementById(id),
   api = createApi();
+const rememberedUsername = (() => {
+  try {
+    return localStorage.getItem("amrp-last-username") || "";
+  } catch {
+    return "";
+  }
+})();
+const defaultUsername = rememberedUsername || "gilles";
+function rememberUsername(value) {
+  try {
+    localStorage.setItem("amrp-last-username", value.trim());
+  } catch {
+    // The display name is optional; credentials are never stored.
+  }
+}
+try {
+  const wallpaper = localStorage.getItem("amrp-wallpaper");
+  if (wallpaper)
+    document.querySelectorAll(".wallpaper").forEach((element) => {
+      element.dataset.wallpaper = wallpaper;
+    });
+} catch {
+  // Use the default wallpaper when storage is unavailable.
+}
+$("default-account-name").textContent = defaultUsername;
+$("login-name").textContent = rememberedUsername || "Gebruiker";
+$("username").value = defaultUsername;
 document
   .querySelectorAll("[data-icon]")
   .forEach((el) => (el.innerHTML = icon(el.dataset.icon)));
@@ -22,15 +49,49 @@ $("switch-account").addEventListener("click", () => {
     .forEach((x) => x.classList.toggle("selected", x.id === "switch-account"));
 });
 $("default-account").addEventListener("click", () => {
-  $("login-name").textContent = "Gebruiker";
+  $("login-name").textContent = defaultUsername;
   $("login-form").hidden = false;
   $("other-user").hidden = true;
   $("username").hidden = true;
-  $("username").value = "gilles";
+  $("username").value = defaultUsername;
   $("password").focus();
   document
     .querySelectorAll(".login-profile")
     .forEach((x) => x.classList.toggle("selected", x.id === "default-account"));
+});
+$("register-toggle").addEventListener("click", () => {
+  $("login-form").hidden = true;
+  $("register-toggle").hidden = true;
+  $("register-form").hidden = false;
+  $("login-error").textContent = "";
+  $("login-name").textContent = "Account aanmaken";
+  $("register-username").focus();
+});
+$("register-cancel").addEventListener("click", () => {
+  $("register-form").hidden = true;
+  $("register-toggle").hidden = false;
+  $("login-form").hidden = false;
+  $("login-name").textContent = defaultUsername;
+  $("login-error").textContent = "";
+});
+$("register-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = event.target.querySelector('[type="submit"]');
+  button.disabled = true;
+  $("login-error").textContent = "";
+  try {
+    const values = Object.fromEntries(new FormData(event.target));
+    const result = await api("/auth/register", {
+      method: "POST",
+      body: values,
+    });
+    rememberUsername(values.username);
+    location.assign(result.oauthUrl);
+  } catch (error) {
+    $("login-error").textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
 });
 $("login-network").addEventListener("click", () => {
   $("login-error").textContent = navigator.onLine
@@ -50,10 +111,13 @@ $("login-form").addEventListener("submit", async (event) => {
   button.disabled = true;
   $("login-error").textContent = "";
   try {
+    const values = Object.fromEntries(new FormData(event.target));
     const result = await api("/auth/login", {
       method: "POST",
-      body: Object.fromEntries(new FormData(event.target)),
+      body: values,
     });
+    rememberUsername(values.username);
+    $("default-account-name").textContent = values.username;
     $("password").value = "";
     if (result.oauthUrl) {
       $("login-form").hidden = true;
@@ -77,6 +141,7 @@ if (message) {
 try {
   const health = await api("/api/health");
   $("setup-notice").hidden = health.discordConfigured || health.demo;
+  $("register-toggle").hidden = !health.discordConfigured || health.demo;
   await api("/api/me");
   location.replace("/");
 } catch (error) {

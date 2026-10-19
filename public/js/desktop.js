@@ -6,7 +6,42 @@ const $ = (id) => document.getElementById(id);
 let me = null,
   portal = null,
   currentApp = null,
-  toastTimer;
+  toastTimer,
+  currentWallpaper = "bloom";
+const wallpaperOptions = [
+  {
+    id: "bloom",
+    label: "Windows 11 Bloom",
+    detail: "Blauwe standaardachtergrond",
+  },
+  {
+    id: "classic",
+    label: "Windows klassiek",
+    detail: "Lichtblauwe Windows-achtergrond",
+  },
+  {
+    id: "midnight",
+    label: "Middernacht",
+    detail: "Donkere achtergrond met blauwe gloed",
+  },
+  {
+    id: "amsterdam",
+    label: "Amsterdam",
+    detail: "Stedelijk blauw kleurverloop",
+  },
+];
+function setWallpaper(value) {
+  if (!wallpaperOptions.some((option) => option.id === value)) value = "bloom";
+  currentWallpaper = value;
+  document.querySelectorAll(".wallpaper").forEach((element) => {
+    element.dataset.wallpaper = value;
+  });
+  try {
+    localStorage.setItem("amrp-wallpaper", value);
+  } catch {
+    // The server preference remains the source of truth.
+  }
+}
 const desktopPositionKey = "amrp-desktop-shortcuts-v1";
 function readDesktopPositions() {
   try {
@@ -74,6 +109,13 @@ function apps() {
   return [
     { id: "pc", label: "Deze pc", icon: "pc", className: "", access: true },
     {
+      id: "personal",
+      label: "Persoonlijke instellingen",
+      icon: "settings",
+      className: "admin",
+      access: true,
+    },
+    {
       id: "police",
       label: "Politie",
       icon: "shield",
@@ -98,6 +140,17 @@ function apps() {
       access: me.permissions.ambulance,
     },
   ].filter((x) => x.access);
+}
+function homeApp() {
+  return me.permissions.owner
+    ? "admin"
+    : me.permissions.policeRead
+      ? "police"
+      : me.permissions.ambulance
+        ? "ambulance"
+        : me.permissions.admin
+          ? "admin"
+          : "pc";
 }
 function renderDesktop() {
   const items = apps();
@@ -166,6 +219,12 @@ async function launch(appId) {
         )}</div><div class="security-note">${icon("lock")} Personeelsgegevens en bestanden worden gedeeld opgeslagen. Je persoonlijke sessie wordt na 30 minuten inactiviteit beëindigd.</div><dl class="help-list"><dt>Mijn account</dt><dd>${e(me.user.username)} · Discord-ID ${e(me.user.discordId)}</dd><dt>Verbinding</dt><dd>${me.demo ? "Afgeschermde lokale demonstratie" : "Discord OAuth2 · rollen gecontroleerd op de server"}</dd></dl></div>`;
     return;
   }
+  if (appId === "personal") {
+    const saved = currentWallpaper;
+    $("app-body").innerHTML =
+      `<div class="explorer"><span class="eyebrow">JOUW WERKPLEK</span><h1>Persoonlijke instellingen</h1><p>Kies een achtergrond voor jouw overheidswerkplek. Je keuze wordt aan jouw account gekoppeld en is ook zichtbaar op andere apparaten.</p><section class="wallpaper-choices">${wallpaperOptions.map((option) => `<button class="wallpaper-choice ${saved === option.id ? "selected" : ""}" data-wallpaper="${option.id}"><span class="wallpaper-preview wallpaper-${option.id}"></span><strong>${e(option.label)}</strong><small>${e(option.detail)}</small><span class="wallpaper-check">${saved === option.id ? icon("check") : ""}</span></button>`).join("")}</section></div>`;
+    return;
+  }
   if (appId === "ambulance") {
     await createAmbulance({ api, me, toast }).open();
     return;
@@ -175,12 +234,23 @@ async function launch(appId) {
       api,
       me,
       toast,
+      section: appId === "admin" ? "admin" : "police",
       onSettings: async () => {
         me = await api("/api/me");
         renderDesktop();
       },
     });
-    await portal.open(appId === "admin" ? "accounts" : "dashboard");
+    const initialTab =
+      appId === "admin"
+        ? me.permissions.owner
+          ? "owner"
+          : "settings"
+        : me.permissions.policeRead
+          ? "dutyboard"
+          : me.permissions.audit
+            ? "audit"
+            : "archive";
+    await portal.open(initialTab);
   } catch (err) {
     toast(err.message, true);
   }
@@ -207,13 +277,14 @@ async function enter() {
   $("loading").hidden = true;
   $("desktop").hidden = false;
   renderDesktop();
+  await launch(homeApp());
 }
 function passwordDialog(required = false) {
   $("modal-title").textContent = required
     ? "Stel je eigen wachtwoord in"
     : "Wachtwoord wijzigen";
   $("modal-body").innerHTML =
-    `${required ? '<div class="security-note">Je gebruikt een tijdelijk wachtwoord. Kies eerst een persoonlijk wachtwoord.</div>' : ""}<label class="field">Huidig wachtwoord<input type="password" name="currentPassword" autocomplete="current-password" required maxlength="128"></label><label class="field">Nieuw wachtwoord<input type="password" name="newPassword" autocomplete="new-password" minlength="12" maxlength="128" required><small>Minimaal 12 tekens. Andere sessies worden afgemeld.</small></label><label class="field">Nieuw wachtwoord herhalen<input type="password" name="confirmPassword" autocomplete="new-password" minlength="12" maxlength="128" required></label>`;
+    `${required ? '<div class="security-note">Stel je persoonlijke wachtwoord in om je account te activeren.</div>' : '<label class="field">Huidig wachtwoord<input type="password" name="currentPassword" autocomplete="current-password" required maxlength="128"></label>'}<label class="field">Nieuw wachtwoord<input type="password" name="newPassword" autocomplete="new-password" minlength="12" maxlength="128" required><small>Minimaal 12 tekens. Andere sessies worden afgemeld.</small></label><label class="field">Nieuw wachtwoord herhalen<input type="password" name="confirmPassword" autocomplete="new-password" minlength="12" maxlength="128" required></label>`;
   $("modal-error").textContent = "";
   $("modal-save").hidden = false;
   $("modal-save").textContent = "Wachtwoord opslaan";
@@ -266,6 +337,27 @@ document.addEventListener("click", async (ev) => {
       if (ev.detail < 2 && !matchMedia("(pointer: coarse)").matches) return;
     }
     await launch(target.dataset.app);
+    return;
+  }
+  if (target.dataset.wallpaper) {
+    try {
+      const result = await api("/api/preferences", {
+        method: "PUT",
+        body: { wallpaper: target.dataset.wallpaper },
+      });
+      setWallpaper(result.wallpaper);
+      target
+        .closest(".wallpaper-choices")
+        .querySelectorAll(".wallpaper-choice")
+        .forEach((item) => {
+          item.classList.toggle("selected", item === target);
+          item.querySelector(".wallpaper-check").innerHTML =
+            item === target ? icon("check") : "";
+        });
+      toast("Je achtergrond is bijgewerkt.");
+    } catch (error) {
+      toast(error.message, true);
+    }
     return;
   }
   const action = target.dataset.action;
@@ -440,7 +532,7 @@ async function checkSession() {
     ) {
       me = updated;
       renderDesktop();
-      await launch("pc");
+      await launch(homeApp());
       toast("Je toegangsrechten zijn bijgewerkt.");
     }
   } catch (error) {
@@ -457,6 +549,8 @@ window.addEventListener("focus", checkSession);
 fillIcons();
 try {
   me = await api("/api/me");
+  const preference = await api("/api/preferences");
+  setWallpaper(preference.wallpaper);
   await enter();
 } catch (error) {
   lockScreen(error.message);

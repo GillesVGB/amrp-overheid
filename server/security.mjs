@@ -127,7 +127,7 @@ export function permissions(roles, settings, ownerRoles = []) {
     policeWrite: command || extra("policeWrite"),
     archive: command || extra("archive"),
     audit: command || extra("audit"),
-    accounts: admin,
+    accounts: owner,
     settings: admin,
     ranks: command,
     ambulance:

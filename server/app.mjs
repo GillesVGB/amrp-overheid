@@ -71,19 +71,21 @@ export async function createApp(config, options = {}) {
     ...(options.discordRequest ? { request: options.discordRequest } : {}),
   });
   app.post("/api/password", auth.auth, auth.csrf, async (req, res) => {
-    requireValue(
-      await verifyPassword(
-        req.body.currentPassword,
-        req.auth.user.password_hash,
-      ),
-      400,
-      "Je huidige wachtwoord klopt niet.",
-    );
-    requireValue(
-      req.body.newPassword !== req.body.currentPassword,
-      400,
-      "Kies een ander wachtwoord.",
-    );
+    if (!req.auth.user.must_change) {
+      requireValue(
+        await verifyPassword(
+          req.body.currentPassword,
+          req.auth.user.password_hash,
+        ),
+        400,
+        "Je huidige wachtwoord klopt niet.",
+      );
+      requireValue(
+        req.body.newPassword !== req.body.currentPassword,
+        400,
+        "Kies een ander wachtwoord.",
+      );
+    }
     const hash = await hashPassword(req.body.newPassword);
     transaction(db, () => {
       db.prepare(
@@ -104,6 +106,24 @@ export async function createApp(config, options = {}) {
   });
   const p = (name) => [auth.auth, auth.permit(name)];
   const w = (name) => [auth.auth, auth.csrf, auth.permit(name)];
+  app.get("/api/preferences", auth.auth, (req, res) => {
+    const saved = db
+      .prepare("SELECT wallpaper FROM user_preferences WHERE user_id=?")
+      .get(req.auth.user.id);
+    res.json({ wallpaper: saved?.wallpaper || "bloom" });
+  });
+  app.put("/api/preferences", auth.auth, auth.csrf, (req, res) => {
+    const wallpaper = text(req.body.wallpaper, "Achtergrond", 24);
+    requireValue(
+      ["bloom", "classic", "midnight", "amsterdam"].includes(wallpaper),
+      400,
+      "Kies een beschikbare achtergrond.",
+    );
+    db.prepare(
+      "INSERT INTO user_preferences(user_id,wallpaper,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET wallpaper=excluded.wallpaper,updated_at=excluded.updated_at",
+    ).run(req.auth.user.id, wallpaper, timestamp());
+    res.json({ wallpaper });
+  });
   app.get("/api/ambulance/calls", ...p("ambulance"), (req, res) => {
     res.json({
       calls: db
@@ -272,6 +292,75 @@ export async function createApp(config, options = {}) {
   app.put("/api/callsigns/:id", ...w("policeWrite"), (req, res) =>
     res.json({ id: saveCallsign(db, req.auth.user, req.body, req.params.id) }),
   );
+  const archiveCallsign = (row, actor) => {
+    const deletedAt = timestamp();
+    db.prepare(
+      "INSERT OR REPLACE INTO deleted_callsigns(id,snapshot,deleted_by,deleted_at) VALUES(?,?,?,?)",
+    ).run(row.id, JSON.stringify(row), actor.id, deletedAt);
+    db.prepare("DELETE FROM callsigns WHERE id=?").run(row.id);
+  };
+  app.get("/api/callsigns/deleted", ...p("policeWrite"), (req, res) => {
+    const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    db.prepare("DELETE FROM deleted_callsigns WHERE deleted_at<?").run(cutoff);
+    res.json({
+      callsigns: db
+        .prepare(
+          "SELECT * FROM deleted_callsigns WHERE deleted_at>=? ORDER BY deleted_at DESC LIMIT 100",
+        )
+        .all(cutoff)
+        .map((row) => ({
+          id: row.id,
+          ...JSON.parse(row.snapshot),
+          deletedAt: row.deleted_at,
+          expiresAt: new Date(
+            new Date(row.deleted_at).getTime() + 30 * 60 * 1000,
+          ).toISOString(),
+        })),
+    });
+  });
+  app.post(
+    "/api/callsigns/deleted/:id/restore",
+    ...w("policeWrite"),
+    (req, res) => {
+      const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const archived = db
+        .prepare("SELECT * FROM deleted_callsigns WHERE id=? AND deleted_at>=?")
+        .get(req.params.id, cutoff);
+      requireValue(archived, 404, "Deze herstelperiode is verlopen.");
+      const snapshot = JSON.parse(archived.snapshot);
+      requireValue(
+        db.prepare("SELECT id FROM ranks WHERE id=?").get(snapshot.rank_id),
+        409,
+        "De bijbehorende rang bestaat niet meer.",
+      );
+      requireValue(
+        !db
+          .prepare("SELECT id FROM callsigns WHERE rank_id=? AND number=?")
+          .get(snapshot.rank_id, snapshot.number),
+        409,
+        "Dit nummer is inmiddels opnieuw uitgegeven. Maak het eerst vrij.",
+      );
+      const slot =
+        (db
+          .prepare("SELECT MAX(slot) value FROM callsigns WHERE rank_id=?")
+          .get(snapshot.rank_id).value || 0) + 1;
+      transaction(db, () => {
+        db.prepare(
+          "INSERT INTO callsigns(id,rank_id,number,slot,personnel_id,place) VALUES(?,?,?,?,NULL,'')",
+        ).run(snapshot.id, snapshot.rank_id, snapshot.number, slot);
+        db.prepare("UPDATE ranks SET capacity=MAX(capacity,?) WHERE id=?").run(
+          slot,
+          snapshot.rank_id,
+        );
+        db.prepare("DELETE FROM deleted_callsigns WHERE id=?").run(archived.id);
+        audit(db, req.auth.user, "roepnummer.hersteld", snapshot.id, null, {
+          number: snapshot.number,
+          rankId: snapshot.rank_id,
+        });
+      });
+      res.json({ ok: true, number: snapshot.number });
+    },
+  );
   app.delete("/api/callsigns/:id", ...w("policeWrite"), (req, res) => {
     const row = db
       .prepare("SELECT * FROM callsigns WHERE id=?")
@@ -279,10 +368,47 @@ export async function createApp(config, options = {}) {
     requireValue(row, 404, "Roepnummer niet gevonden.");
     requireValue(!row.personnel_id, 409, "Maak dit roepnummer eerst vrij.");
     transaction(db, () => {
-      db.prepare("DELETE FROM callsigns WHERE id=?").run(row.id);
+      archiveCallsign(row, req.auth.user);
       audit(db, req.auth.user, "roepnummer.verwijderd", row.id, row);
     });
     res.json({ ok: true });
+  });
+  app.delete("/api/callsigns", ...w("policeWrite"), (req, res) => {
+    requireValue(
+      Array.isArray(req.body.ids) &&
+        req.body.ids.length > 0 &&
+        req.body.ids.length <= 1000,
+      400,
+      "Selecteer één tot duizend roepnummers.",
+    );
+    const ids = req.body.ids.map((value) => text(value, "Roepnummer-ID", 80));
+    requireValue(
+      new Set(ids).size === ids.length,
+      400,
+      "Een roepnummer is meerdere keren geselecteerd.",
+    );
+    let deleted = 0;
+    transaction(db, () => {
+      const rows = ids.map((value) =>
+        db.prepare("SELECT * FROM callsigns WHERE id=?").get(value),
+      );
+      requireValue(
+        rows.every(Boolean),
+        404,
+        "Een geselecteerd roepnummer bestaat niet meer.",
+      );
+      requireValue(
+        rows.every((row) => !row.personnel_id),
+        409,
+        "Maak toegewezen roepnummers eerst vrij voordat je ze verwijdert.",
+      );
+      for (const row of rows) {
+        archiveCallsign(row, req.auth.user);
+        audit(db, req.auth.user, "roepnummer.verwijderd", row.id, row);
+      }
+      deleted = rows.length;
+    });
+    res.json({ deleted });
   });
   app.post("/api/ranks", ...w("ranks"), (req, res) =>
     res.status(201).json(saveRank(db, req.auth.user, req.body)),
@@ -377,26 +503,25 @@ export async function createApp(config, options = {}) {
   }).single("file");
   const uploadDir = path.join(config.dataDir, "uploads");
   fs.mkdirSync(uploadDir, { recursive: true });
-  const archiveFiles =
-    options.archiveFiles || {
-      async put(name, buffer) {
-        fs.writeFileSync(path.join(uploadDir, name), buffer, {
-          flag: "wx",
-          mode: 0o600,
-        });
-      },
-      async get(name) {
-        try {
-          return fs.readFileSync(path.join(uploadDir, name));
-        } catch (error) {
-          if (error.code === "ENOENT") return null;
-          throw error;
-        }
-      },
-      async delete(name) {
-        fs.rmSync(path.join(uploadDir, name), { force: true });
-      },
-    };
+  const archiveFiles = options.archiveFiles || {
+    async put(name, buffer) {
+      fs.writeFileSync(path.join(uploadDir, name), buffer, {
+        flag: "wx",
+        mode: 0o600,
+      });
+    },
+    async get(name) {
+      try {
+        return fs.readFileSync(path.join(uploadDir, name));
+      } catch (error) {
+        if (error.code === "ENOENT") return null;
+        throw error;
+      }
+    },
+    async delete(name) {
+      fs.rmSync(path.join(uploadDir, name), { force: true });
+    },
+  };
   const saveArchive = async (req, res) => {
     const before = req.params.id
       ? db.prepare("SELECT * FROM archive WHERE id=?").get(req.params.id)
@@ -481,9 +606,11 @@ export async function createApp(config, options = {}) {
       throw error;
     }
     if (stored && before?.storage_name)
-      await archiveFiles.delete(before.storage_name).catch((error) =>
-        console.error("Oud archiefbestand kon niet worden verwijderd."),
-      );
+      await archiveFiles
+        .delete(before.storage_name)
+        .catch((error) =>
+          console.error("Oud archiefbestand kon niet worden verwijderd."),
+        );
     res.status(before ? 200 : 201).json({ id: row.id });
   };
   app.post("/api/archive", ...w("archive"), upload, saveArchive);
@@ -608,7 +735,11 @@ export async function createApp(config, options = {}) {
       db.prepare("SELECT COUNT(*) AS count FROM users").get().count,
     );
     requireValue(count === 0, 409, "Het eerste account is al aangemaakt.");
-    const username = text(req.body.username, "Gebruikersnaam", 80).toLowerCase();
+    const username = text(
+      req.body.username,
+      "Gebruikersnaam",
+      80,
+    ).toLowerCase();
     requireValue(
       /^[\p{L}\p{N}._-]+$/u.test(username),
       400,
@@ -734,6 +865,7 @@ export async function createApp(config, options = {}) {
     : setInterval(() => {
         const now = Date.now();
         db.prepare("DELETE FROM auth_flows WHERE expires_at<?").run(now);
+        db.prepare("DELETE FROM signup_flows WHERE expires_at<?").run(now);
         db.prepare("DELETE FROM sessions WHERE expires_at<?").run(now);
         db.prepare("DELETE FROM rate_limits WHERE expires_at<?").run(now);
       }, 300000);

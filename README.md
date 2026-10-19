@@ -4,10 +4,15 @@ Een gedeelde digitale werkplek voor de Amsterdam Roleplay-overheidsdiensten. De 
 
 ## Wat erin zit
 
-- Inloggen met een intern account en controle van de Discord-identiteit en actuele serverrollen.
+- Inloggen met een intern account en controle van de Discord-identiteit en actuele serverrollen. Politie en korpsleiding kunnen zelf een account starten met hun Discord-rol; na controle kiezen ze hun eigen wachtwoord.
 - Politieoverzicht, personeel, rangreeksen, roepnummers, standplaatsen, archief, accounts, instellingen en activiteitenlog.
+- De Politie-app en Systeembeheer zijn aparte werkplekken. Politie opent standaard het dienstbord, ambulance de meldingen en de eigenaar het beheerstartscherm.
+- Personeelsprofielen tonen rang, standplaats, roepnummer, status en de bij de laatste Discord-synchronisatie opgehaalde rollen. Vanuit een profiel kun je een vrij nummer koppelen of het Discord-profiel openen.
+- Roepnummers blijven na verwijderen 30 minuten herstelbaar. Het activiteitenlog kan worden gefilterd op medewerker, actie, zoektekst en datum.
+- Medewerkers kunnen per account een Windows-achtergrond kiezen; die keuze wordt op de server opgeslagen en verschijnt ook op het inlogscherm. Het inlogscherm onthoudt alleen de laatst gebruikte gebruikersnaam, nooit een wachtwoord.
 - Ambulancewerkplek met afgeschermde RP-meldingen, eenheidstoewijzing, statusupdates en afronding. Voer geen echte medische persoonsgegevens in.
-- Eigenaarrollen in `ROLE_OWNER` hebben volledige rechten.
+- Eigenaarrollen in `ROLE_OWNER` hebben volledige rechten en zijn als enige bevoegd om overheidsaccounts te beheren.
+- Korpsleiding kan vrije roepnummers met meerdere tegelijk selecteren en verwijderen, of met de plusknop een nummer aan een specifieke reeks toevoegen.
 - Achtergrondsynchronisatie met Discord en handmatige synchronisatie door bevoegde korpsleiding.
 - Rangrollen zijn vooraf ingesteld in `server/discord-config.json` en `server/discord-ranks.json`.
 - Automatische roepnummertoewijzing gebeurt alleen wanneer de Discord-naam bij een bestaand vrij nummer in de juiste rang past. Onzekere nummers verschijnen als controlepunt.
@@ -31,7 +36,7 @@ De productie-app draait als Netlify Function. De bijbehorende instellingen staan
 2. Open in Netlify **Data & Storage → Database** en maak de database voor dit project aan. De function gebruikt de automatisch gekoppelde database. Netlify Blobs wordt bij de eerste function-aanroep aangemaakt.
 3. Stel in Netlify **Project configuration → Environment variables** de productievariabelen in. Zet `APP_ORIGIN` op `https://overheid.amsterdamrp.nl`; genereer `TOKEN_ENCRYPTION_KEY` met `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`. Bewaar dezelfde encryptiesleutel permanent.
 
-   Voeg ook `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN` en `DISCORD_GUILD_ID` toe. De server-ID is `1402056739985162394`. De rollen kunnen in Netlify worden ingesteld als `ROLE_OWNER=1519394039361835239,1519394037423931392`, `ROLE_ADMIN=1519394041165516911`, `ROLE_POLICE=1519394082277953679` en `ROLE_COMMAND=1519394051760066660`. Vul `ROLE_AMBULANCE` in als er een aparte ambulancerol is.
+   Voeg ook `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN` en `DISCORD_GUILD_ID` toe. De server-ID is `1402056739985162394`. De rollen kunnen in Netlify worden ingesteld als `ROLE_OWNER=1519394039361835239,1519394037423931392`, `ROLE_ADMIN=1519394041165516911`, `ROLE_POLICE=1519394082277953679` en `ROLE_COMMAND=1519394051760066660`. Vul `ROLE_AMBULANCE` in als er een aparte ambulancerol is en schakel de ambulancewerkplek in bij de systeeminstellingen om ambulanceleden te laten aanmelden.
 
 4. Voeg in de Discord Developer Portal bij OAuth2 deze exacte redirect-URL toe: `https://overheid.amsterdamrp.nl/auth/discord/callback`. De bot moet lid zijn van de server en leden kunnen lezen. Geef de bot geen beheerdersrechten.
 5. Voeg tijdelijk de geheime variabele `NETLIFY_BOOTSTRAP_KEY` toe met een zelf gegenereerde willekeurige waarde van minstens 32 tekens. Deploy opnieuw. Maak daarna precies één eerste beheeraccount via `POST https://overheid.amsterdamrp.nl/api/first-account` met JSON-velden `username`, `discordId` en `password`, en met de header `x-initial-setup-key` gelijk aan die tijdelijke sleutel. Het Discord-ID van het beheerdersaccount is `960090714950225970`; kies een tijdelijk wachtwoord van minstens 12 tekens. Verwijder `NETLIFY_BOOTSTRAP_KEY` daarna uit Netlify en deploy opnieuw. De eerste aanmelding vraagt om een nieuw wachtwoord.

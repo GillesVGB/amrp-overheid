@@ -174,7 +174,12 @@ export function createDiscordSync({ db, config, request = fetch }) {
             const before = db
               .prepare("SELECT * FROM personnel WHERE discord_id=?")
               .get(member.user.id);
-            const target = before?.id || id();
+            const target = before?.id || id(),
+              discordRoles = JSON.stringify(
+                actualRoles
+                  .filter((role) => member.roles.includes(role.id))
+                  .map(({ id: roleId, name }) => ({ id: roleId, name })),
+              );
             if (before) {
               if (before.rank_id !== rank.id)
                 db.prepare(
@@ -184,11 +189,12 @@ export function createDiscordSync({ db, config, request = fetch }) {
                 before.discord_name !== name ||
                 before.rank_id !== rank.id ||
                 !before.active ||
-                before.source !== "discord"
+                before.source !== "discord" ||
+                (before.discord_roles || "[]") !== discordRoles
               ) {
                 db.prepare(
-                  "UPDATE personnel SET discord_name=?,rank_id=?,active=1,source='discord',updated_at=? WHERE id=?",
-                ).run(name, rank.id, timestamp(), target);
+                  "UPDATE personnel SET discord_name=?,rank_id=?,active=1,source='discord',discord_roles=?,updated_at=? WHERE id=?",
+                ).run(name, rank.id, discordRoles, timestamp(), target);
                 result.updated++;
                 audit(
                   db,
@@ -205,7 +211,7 @@ export function createDiscordSync({ db, config, request = fetch }) {
               }
             } else {
               db.prepare(
-                "INSERT INTO personnel(id,discord_id,discord_name,rank_id,active,created_at,updated_at,source) VALUES(?,?,?,?,1,?,?,'discord')",
+                "INSERT INTO personnel(id,discord_id,discord_name,rank_id,active,created_at,updated_at,source,discord_roles) VALUES(?,?,?,?,1,?,?,'discord',?)",
               ).run(
                 target,
                 member.user.id,
@@ -213,6 +219,7 @@ export function createDiscordSync({ db, config, request = fetch }) {
                 rank.id,
                 timestamp(),
                 timestamp(),
+                discordRoles,
               );
               result.added++;
               audit(

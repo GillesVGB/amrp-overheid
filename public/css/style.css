@@ -296,6 +296,41 @@ svg.icon {
   color: #c5d9ec;
   margin-top: 18px;
 }
+.login-register-toggle,
+.register-cancel {
+  border: 0;
+  background: transparent;
+  color: #e2efff;
+  padding: 10px 4px;
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.login-register-toggle:hover,
+.register-cancel:hover {
+  color: white;
+}
+.register-actions {
+  display: grid;
+  gap: 4px;
+}
+.register-submit {
+  width: 100%;
+  border: 1px solid #d9eaff;
+  background: #ffffff24;
+  color: white;
+  padding: 11px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+.register-submit:hover {
+  background: #ffffff38;
+}
+.register-submit:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
 .login-error {
   font-size: 13px;
   color: #ffe7cb;
@@ -1162,6 +1197,42 @@ svg.icon {
   margin-left: auto;
   font-size: 10px;
   color: #8d9daf;
+}
+.audit-date-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #6b7e95;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.audit-date-filter input {
+  min-height: 33px;
+  padding: 6px 8px;
+  color: #344f6b;
+  background: #fff;
+  border: 1px solid #dce5ef;
+  border-radius: 4px;
+  font: inherit;
+}
+.callsign-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #667d96;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.callsign-select-all input,
+.callsign-select {
+  width: 15px;
+  height: 15px;
+  accent-color: #276bc2;
+  cursor: pointer;
+}
+.callsign-select:disabled {
+  cursor: not-allowed;
 }
 .table-scroll {
   overflow: auto;

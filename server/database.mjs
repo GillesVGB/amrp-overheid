@@ -20,6 +20,9 @@ export function openDatabase(config) {
  CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,username TEXT NOT NULL COLLATE NOCASE UNIQUE,discord_id TEXT NOT NULL UNIQUE,password_hash TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,must_change INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS sessions(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,csrf TEXT NOT NULL,tokens TEXT NOT NULL,expires_at INTEGER NOT NULL,last_seen INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS auth_flows(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,expires_at INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS signup_flows(hash TEXT PRIMARY KEY,username TEXT NOT NULL,expires_at INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS user_preferences(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,wallpaper TEXT NOT NULL DEFAULT 'bloom',updated_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS deleted_callsigns(id TEXT PRIMARY KEY,snapshot TEXT NOT NULL,deleted_by TEXT NOT NULL,deleted_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS rate_limits(key TEXT PRIMARY KEY,count INTEGER NOT NULL,expires_at INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS ranks(id TEXT PRIMARY KEY,code TEXT NOT NULL UNIQUE,label TEXT NOT NULL,capacity INTEGER NOT NULL,special INTEGER NOT NULL,position INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS personnel(id TEXT PRIMARY KEY,discord_id TEXT NOT NULL UNIQUE,discord_name TEXT NOT NULL,rank_id TEXT NOT NULL REFERENCES ranks(id),active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
@@ -55,6 +58,15 @@ export function openDatabase(config) {
       .some((x) => x.name === "callsign_issue")
   )
     db.exec("ALTER TABLE personnel ADD COLUMN callsign_issue TEXT");
+  if (
+    !db
+      .prepare("PRAGMA table_info(personnel)")
+      .all()
+      .some((x) => x.name === "discord_roles")
+  )
+    db.exec(
+      "ALTER TABLE personnel ADD COLUMN discord_roles TEXT NOT NULL DEFAULT '[]'",
+    );
   if (
     !db
       .prepare("PRAGMA table_info(personnel)")
@@ -110,6 +122,9 @@ export function openDatabase(config) {
     ])
       db.prepare("INSERT INTO categories VALUES(?,?)").run(id(), name);
   }
+  db.prepare("DELETE FROM deleted_callsigns WHERE deleted_at<?").run(
+    new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+  );
   return db;
 }
 export function transaction(db, fn) {

@@ -130,10 +130,52 @@ test("Volledige werkplek: login, rollen, opslag, archief en accountbeheer", asyn
     assert.equal((await command.login("command")).status, 200);
     assert.equal((await admin.login("admin")).status, 200);
     assert.equal((await owner.login("owner")).status, 200);
+    assert.equal(
+      (await admin.request("/api/me")).data.permissions.accounts,
+      false,
+    );
+    assert.equal(
+      (await owner.request("/api/me")).data.permissions.accounts,
+      true,
+    );
     const raw = db.prepare("SELECT tokens FROM sessions LIMIT 1").get().tokens;
     assert.ok(!raw.includes("demoId"));
     assert.ok(decrypt(raw, config.key).demoId);
   });
+  await t.test(
+    "Persoonlijke achtergrondinstellingen volgen het account",
+    async () => {
+      assert.equal((await anon.request("/api/preferences")).status, 401);
+      assert.equal(
+        (await agent.request("/api/preferences")).data.wallpaper,
+        "bloom",
+      );
+      assert.equal(
+        (
+          await agent.request("/api/preferences", {
+            method: "PUT",
+            body: { wallpaper: "midnight" },
+          })
+        ).data.wallpaper,
+        "midnight",
+      );
+      assert.equal(
+        db
+          .prepare("SELECT wallpaper FROM user_preferences WHERE user_id=?")
+          .get("agent").wallpaper,
+        "midnight",
+      );
+      assert.equal(
+        (
+          await agent.request("/api/preferences", {
+            method: "PUT",
+            body: { wallpaper: "https://example.com/evil" },
+          })
+        ).status,
+        400,
+      );
+    },
+  );
   await t.test("Eigenaar beheert de ambulancemeldingen", async () => {
     const session = await owner.request("/api/me");
     assert.equal(session.data.permissions.owner, true);
@@ -216,6 +258,13 @@ test("Volledige werkplek: login, rollen, opslag, archief en accountbeheer", asyn
       403,
     );
   });
+  await t.test("Alleen de eigenaar kan accounts beheren", async () => {
+    assert.equal(
+      (await admin.request("/api/accounts", { method: "POST", body: {} }))
+        .status,
+      403,
+    );
+  });
   let personId;
   await t.test("Personeel, toewijzingen en dubbele nummers", async () => {
     const body = {
@@ -276,6 +325,66 @@ test("Volledige werkplek: login, rollen, opslag, archief en accountbeheer", asyn
       "Test Agent",
     );
   });
+  await t.test(
+    "Korpsleiding kan vrije roepnummers in bulk verwijderen",
+    async () => {
+      const first = await command.request("/api/callsigns", {
+          method: "POST",
+          body: { rankId: rank.id, number: "09-901" },
+        }),
+        second = await command.request("/api/callsigns", {
+          method: "POST",
+          body: { rankId: rank.id, number: "09-902" },
+        });
+      assert.equal(first.status, 201);
+      assert.equal(second.status, 201);
+      assert.equal(
+        (
+          await command.request("/api/callsigns", {
+            method: "DELETE",
+            body: { ids: [slot.id, first.data.id] },
+          })
+        ).status,
+        409,
+      );
+      assert.ok(
+        db.prepare("SELECT id FROM callsigns WHERE id=?").get(first.data.id),
+      );
+      const deleted = await command.request("/api/callsigns", {
+        method: "DELETE",
+        body: { ids: [first.data.id, second.data.id] },
+      });
+      assert.equal(deleted.status, 200);
+      assert.equal(deleted.data.deleted, 2);
+      assert.equal(
+        db.prepare("SELECT id FROM callsigns WHERE id=?").get(second.data.id),
+        undefined,
+      );
+      const recoverable = await command.request("/api/callsigns/deleted");
+      assert.equal(recoverable.status, 200);
+      assert.ok(recoverable.data.callsigns.some((x) => x.id === first.data.id));
+      const restored = await command.request(
+        "/api/callsigns/deleted/" + first.data.id + "/restore",
+        { method: "POST", body: {} },
+      );
+      assert.equal(restored.status, 200);
+      assert.equal(restored.data.number, "09-901");
+      assert.equal(
+        db.prepare("SELECT number FROM callsigns WHERE id=?").get(first.data.id)
+          .number,
+        "09-901",
+      );
+      assert.equal(
+        (
+          await agent.request("/api/callsigns", {
+            method: "DELETE",
+            body: { ids: [first.data.id] },
+          })
+        ).status,
+        403,
+      );
+    },
+  );
   await t.test("Rang verkleinen beschermt toegewezen regels", async () => {
     assert.equal(
       (
@@ -415,7 +524,7 @@ test("Volledige werkplek: login, rollen, opslag, archief en accountbeheer", asyn
     "Beheeraccounts, tijdelijk wachtwoord en sessie-intrekking",
     async () => {
       const newPassword = "Nieuw-TestPassword-2026!";
-      const created = await admin.request("/api/accounts", {
+      const created = await owner.request("/api/accounts", {
         method: "POST",
         body: {
           username: "nieuw",
@@ -442,7 +551,7 @@ test("Volledige werkplek: login, rollen, opslag, archief en accountbeheer", asyn
       assert.equal((await newcomer.request("/api/bootstrap")).status, 200);
       assert.equal(
         (
-          await admin.request("/api/accounts/" + created.data.id, {
+          await owner.request("/api/accounts/" + created.data.id, {
             method: "PUT",
             body: { enabled: false },
           })
@@ -549,6 +658,10 @@ test("Cryptografie en beperkte dienstrollen", () => {
   assert.equal(owner.accounts, true);
   assert.equal(owner.settings, true);
   assert.equal(owner.ambulance, true);
+  assert.equal(
+    permissions(["admin-id"], settings, ["owner-id"]).accounts,
+    false,
+  );
   assert.equal(
     permissions(["second-owner-id"], settings, ["owner-id", "second-owner-id"])
       .owner,
@@ -684,4 +797,162 @@ test("Discord-controle herstelt van rate limits en hergebruikt recente rollen", 
   assert.equal((await send("/api/me")).status, 200);
   assert.equal(identityCalls, 2);
   assert.equal(memberCalls, 1);
+});
+
+test("Zelfregistratie maakt alleen Discord-politieleden accounts en verplicht een wachtwoord", async (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "gov-signup-test-"));
+  const config = {
+    dataDir,
+    key: randomBytes(32),
+    production: false,
+    demo: false,
+    discordReady: true,
+    origin: "",
+    clientId: "test-client",
+    clientSecret: "test-secret",
+    guildId: "1402056739985162394",
+    roles: {
+      owner: ["1519394039361835239"],
+      admin: ["1519394041165516911"],
+      police: ["1519394082277953679"],
+      command: ["1519394051760066660"],
+      ambulance: [],
+    },
+  };
+  const db = openDatabase(config);
+  let identityId = "990000000000000011",
+    memberRoles = config.roles.police;
+  const request = async (input, init = {}) => {
+    const url = new URL(input);
+    if (url.pathname === "/api/v10/oauth2/token") {
+      const code = new URLSearchParams(init.body).get("code");
+      return new Response(
+        JSON.stringify({
+          access_token: "signup-" + code,
+          refresh_token: "refresh-" + code,
+          expires_in: 3600,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    if (url.pathname === "/api/v10/users/@me")
+      return new Response(
+        JSON.stringify({ id: identityId, username: "discord-user" }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    if (url.pathname.endsWith("/member"))
+      return new Response(JSON.stringify({ roles: memberRoles }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    throw new Error("Unexpected Discord API request");
+  };
+  const service = await createApp(config, { db, request });
+  const server = service.app.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const base = "http://127.0.0.1:" + server.address().port;
+  config.origin = base;
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    service.close();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  function client() {
+    let cookie = "",
+      csrf = "";
+    return {
+      async request(route, { method = "GET", body } = {}) {
+        const response = await fetch(base + route, {
+          method,
+          redirect: "manual",
+          headers: {
+            ...(cookie ? { Cookie: cookie } : {}),
+            ...(method !== "GET" ? { Origin: base, "X-CSRF-Token": csrf } : {}),
+            ...(body ? { "Content-Type": "application/json" } : {}),
+          },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const set = response.headers.getSetCookie();
+        if (set.length)
+          cookie = set.map((entry) => entry.split(";")[0]).join("; ");
+        const data = response.headers.get("content-type")?.includes("json")
+          ? await response.json()
+          : await response.text();
+        if (route === "/api/me" && response.ok) csrf = data.csrf;
+        return { status: response.status, data, headers: response.headers };
+      },
+    };
+  }
+
+  const agent = client();
+  const begin = await agent.request("/auth/register", {
+    method: "POST",
+    body: { username: "Nieuwe.Agent" },
+  });
+  assert.equal(begin.status, 200);
+  assert.match(
+    begin.data.oauthUrl,
+    /^https:\/\/discord\.com\/oauth2\/authorize\?/,
+  );
+  const state = new URL(begin.data.oauthUrl).searchParams.get("state");
+  const callback = await agent.request(
+    "/auth/discord/callback?code=police-signup&state=" +
+      encodeURIComponent(state),
+  );
+  assert.equal(callback.status, 302);
+  assert.equal(callback.headers.get("location"), "/");
+  const me = await agent.request("/api/me");
+  assert.equal(me.status, 200);
+  assert.equal(me.data.user.username, "nieuwe.agent");
+  assert.equal(me.data.user.mustChange, true);
+  assert.equal(me.data.permissions.accounts, false);
+  assert.equal((await agent.request("/api/bootstrap")).status, 403);
+  assert.equal(
+    (
+      await agent.request("/api/password", {
+        method: "POST",
+        body: { newPassword: "First-User-Password-2026!" },
+      })
+    ).status,
+    200,
+  );
+  assert.equal((await agent.request("/api/bootstrap")).status, 200);
+  assert.equal(
+    (
+      await agent.request("/api/accounts", {
+        method: "POST",
+        body: {},
+      })
+    ).status,
+    403,
+  );
+
+  identityId = "990000000000000012";
+  memberRoles = config.roles.admin;
+  const admin = client();
+  const adminBegin = await admin.request("/auth/register", {
+    method: "POST",
+    body: { username: "alleen-admin" },
+  });
+  const adminState = new URL(adminBegin.data.oauthUrl).searchParams.get(
+    "state",
+  );
+  const denied = await admin.request(
+    "/auth/discord/callback?code=admin-signup&state=" +
+      encodeURIComponent(adminState),
+  );
+  assert.equal(denied.status, 302);
+  assert.match(
+    decodeURIComponent(
+      new URL(denied.headers.get("location"), base).searchParams.get(
+        "loginError",
+      ),
+    ),
+    /alleen beschikbaar voor politie/,
+  );
+  assert.equal(
+    db.prepare("SELECT id FROM users WHERE username='alleen-admin'").get(),
+    undefined,
+  );
 });

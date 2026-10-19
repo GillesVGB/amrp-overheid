@@ -22,6 +22,7 @@ const paths = {
   chevron: "m9 5 7 7-7 7",
   arrow: "M5 12h14m-6-6 6 6-6 6",
   clock: "M12 8v5l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0",
+  history: "M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5M12 7v5l3 2",
   file: "M4 2h10l6 6v14H4zm10 0v7h6M8 13h8m-8 4h8",
   upload: "M12 16V3m-5 5 5-5 5 5M3 16v5h18v-5",
   download: "M12 3v13m-5-5 5 5 5-5M3 16v5h18v-5",

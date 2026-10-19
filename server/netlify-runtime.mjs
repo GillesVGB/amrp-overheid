@@ -58,6 +58,7 @@ export function withPortalState(callback) {
   return withNetlifyPortalState(config, async (requestDb) => {
     const now = Date.now();
     requestDb.prepare("DELETE FROM auth_flows WHERE expires_at<?").run(now);
+    requestDb.prepare("DELETE FROM signup_flows WHERE expires_at<?").run(now);
     requestDb.prepare("DELETE FROM sessions WHERE expires_at<?").run(now);
     requestDb.prepare("DELETE FROM rate_limits WHERE expires_at<?").run(now);
     const request = { db: requestDb, afterCommit: [] };

@@ -8,9 +8,17 @@ import {
   HttpError,
   requireValue,
   verifyPassword,
+  hashPassword,
   text,
 } from "./security.mjs";
-import { getSettings, publicUser, audit } from "./database.mjs";
+import {
+  getSettings,
+  publicUser,
+  audit,
+  id,
+  timestamp,
+  transaction,
+} from "./database.mjs";
 const API = "https://discord.com/api/v10";
 export function authentication({
   db,
@@ -339,6 +347,55 @@ export function authentication({
       res.cookie(flowName, raw, { ...cookies, maxAge: 5 * 60e3 });
       res.json({ oauthUrl: "/auth/discord/start" });
     });
+    app.post("/auth/register", sameOrigin, (req, res) => {
+      limit("register-ip:" + req.ip, 8);
+      requireValue(
+        config.discordReady,
+        503,
+        "Discord-login is nog niet geconfigureerd door de beheerder.",
+      );
+      const username = text(
+        req.body.username,
+        "Gebruikersnaam",
+        80,
+      ).toLowerCase();
+      requireValue(
+        /^[\p{L}\p{N}._-]+$/u.test(username),
+        400,
+        "Gebruik alleen letters, cijfers, punten, streepjes en underscores.",
+      );
+      limit("register-user:" + username, 4);
+      requireValue(
+        !db.prepare("SELECT id FROM users WHERE username=?").get(username),
+        409,
+        "Deze gebruikersnaam is al in gebruik. Meld je aan met je bestaande account.",
+      );
+      requireValue(
+        (config.roles.police || []).length ||
+          (config.roles.ambulance || []).length ||
+          (config.roles.command || []).length,
+        503,
+        "Zelfregistratie is nog niet ingesteld voor politie of ambulance.",
+      );
+      const state = token();
+      db.prepare("INSERT INTO signup_flows VALUES(?,?,?)").run(
+        digest(state),
+        username,
+        clock() + 5 * 60e3,
+      );
+      res.cookie(flowName, state, { ...cookies, maxAge: 5 * 60e3 });
+      const params = new URLSearchParams({
+        client_id: config.clientId,
+        redirect_uri: config.origin + "/auth/discord/callback",
+        response_type: "code",
+        scope: "identify guilds.members.read",
+        state,
+        prompt: "consent",
+      });
+      res.json({
+        oauthUrl: "https://discord.com/oauth2/authorize?" + params,
+      });
+    });
     app.get("/auth/discord/start", (req, res) => {
       const old = cookieMap(req)[flowName] || "",
         flow = db
@@ -381,12 +438,17 @@ export function authentication({
         const flow = db
           .prepare("SELECT * FROM auth_flows WHERE hash=?")
           .get(digest(state));
+        const signup = db
+          .prepare("SELECT * FROM signup_flows WHERE hash=?")
+          .get(digest(state));
         requireValue(
-          flow?.kind === "oauth" && flow.expires_at > clock(),
+          (flow?.kind === "oauth" && flow.expires_at > clock()) ||
+            (signup && signup.expires_at > clock()),
           401,
           "Deze aanmeldpoging is verlopen.",
         );
         db.prepare("DELETE FROM auth_flows WHERE hash=?").run(digest(state));
+        db.prepare("DELETE FROM signup_flows WHERE hash=?").run(digest(state));
         requireValue(
           !req.query.iss || req.query.iss === "https://discord.com",
           403,
@@ -408,6 +470,55 @@ export function authentication({
           expiresAt: clock() + value.expires_in * 1000,
         };
         const verified = await member(tokens);
+        if (signup) {
+          const policeRole = [
+              ...(config.roles.police || []),
+              ...(config.roles.command || []),
+            ].some((role) => verified.roles.includes(role)),
+            ambulanceRole = (config.roles.ambulance || []).some((role) =>
+              verified.roles.includes(role),
+            ),
+            settings = getSettings(db);
+          requireValue(
+            policeRole || (ambulanceRole && settings.ambulanceEnabled),
+            403,
+            "Zelfregistratie is alleen beschikbaar voor politie en ingeschakelde ambulanceleden.",
+          );
+          requireValue(
+            !db
+              .prepare("SELECT id FROM users WHERE username=? OR discord_id=?")
+              .get(signup.username, verified.identity.id),
+            409,
+            "Er bestaat al een account voor deze gebruikersnaam of Discord-identiteit. Meld je aan met je bestaande account.",
+          );
+          const user = {
+            id: id(),
+            username: signup.username,
+            discord_id: verified.identity.id,
+            password_hash: await hashPassword(token()),
+            enabled: 1,
+            must_change: 1,
+            created_at: timestamp(),
+          };
+          transaction(db, () => {
+            db.prepare(
+              "INSERT INTO users(id,username,discord_id,password_hash,enabled,must_change,created_at) VALUES(?,?,?,?,1,1,?)",
+            ).run(
+              user.id,
+              user.username,
+              user.discord_id,
+              user.password_hash,
+              user.created_at,
+            );
+            audit(db, user, "account.zelfregistratie", user.id, null, {
+              username: user.username,
+            });
+          });
+          createSession(res, user, verified.tokens);
+          res.clearCookie(flowName, cookies);
+          res.redirect("/");
+          return;
+        }
         const user = db
           .prepare("SELECT * FROM users WHERE id=?")
           .get(flow.user_id);

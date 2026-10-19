@@ -37,34 +37,114 @@ const textArea = (label, name, value = "", extra = "") =>
 const readOnly = () =>
   `<span class="read-only-tag">${icon("lock")} Alleen lezen</span>`;
 const routes = [
-  { id: "dashboard", label: "Overzicht", icon: "grid", right: "policeRead" },
-  { id: "personnel", label: "Personeel", icon: "users", right: "policeRead" },
-  { id: "callsigns", label: "Roepnummers", icon: "table", right: "policeRead" },
-  { id: "archive", label: "Archief", icon: "folder", right: "archive" },
-  { id: "ranks", label: "Rangen & reeksen", icon: "badge", right: "ranks" },
-  { id: "audit", label: "Activiteitenlog", icon: "clock", right: "audit" },
-  { id: "accounts", label: "Accounts", icon: "lock", right: "accounts" },
+  {
+    id: "dashboard",
+    label: "Overzicht",
+    icon: "grid",
+    right: "policeRead",
+    section: "police",
+  },
+  {
+    id: "dutyboard",
+    label: "Dienstbord",
+    icon: "activity",
+    right: "policeRead",
+    section: "police",
+  },
+  {
+    id: "personnel",
+    label: "Personeel",
+    icon: "users",
+    right: "policeRead",
+    section: "police",
+  },
+  {
+    id: "callsigns",
+    label: "Roepnummers",
+    icon: "table",
+    right: "policeRead",
+    section: "police",
+  },
+  {
+    id: "archive",
+    label: "Archief",
+    icon: "folder",
+    right: "archive",
+    section: "police",
+  },
+  {
+    id: "ranks",
+    label: "Rangen & reeksen",
+    icon: "badge",
+    right: "ranks",
+    section: "police",
+  },
+  {
+    id: "audit",
+    label: "Activiteitenlog",
+    icon: "clock",
+    right: "audit",
+    section: "police",
+  },
+  {
+    id: "owner",
+    label: "Beheerstart",
+    icon: "grid",
+    right: "accounts",
+    section: "admin",
+  },
+  {
+    id: "accounts",
+    label: "Accounts",
+    icon: "lock",
+    right: "accounts",
+    section: "admin",
+  },
+  {
+    id: "system-audit",
+    label: "Activiteitenlog",
+    icon: "clock",
+    right: "audit",
+    section: "admin",
+  },
   {
     id: "settings",
     label: "Systeeminstellingen",
     icon: "settings",
     right: "settings",
+    section: "admin",
   },
 ];
-export function createPortal({ api, me, toast, onSettings }) {
+export function createPortal({
+  api,
+  me,
+  toast,
+  onSettings,
+  section = "police",
+}) {
   let data = {},
     tab = "dashboard",
     query = "",
     rankFilter = "",
     statusFilter = "",
     categoryFilter = "",
+    auditActor = "",
+    auditAction = "",
+    auditFrom = "",
+    auditTo = "",
     sort = "name",
-    sortDirection = 1;
+    sortDirection = 1,
+    selectedCallsigns = new Set();
   async function load() {
     data = await api("/api/bootstrap");
+    selectedCallsigns = new Set(
+      [...selectedCallsigns].filter((id) =>
+        data.callsigns.some((row) => row.id === id && !row.personnel_id),
+      ),
+    );
   }
   function header(title, subtitle, buttons = "") {
-    return `<div class="page-heading"><div><span class="eyebrow">POLITIE AMSTERDAM</span><h1>${title}</h1><p>${subtitle}</p></div><div class="heading-actions">${buttons}</div></div>`;
+    return `<div class="page-heading"><div><span class="eyebrow">${section === "admin" ? "OVERHEID AMSTERDAM" : "POLITIE AMSTERDAM"}</span><h1>${title}</h1><p>${subtitle}</p></div><div class="heading-actions">${buttons}</div></div>`;
   }
   function stat(label, value, ico, sub, good = false) {
     return `<div class="stat-card ${good ? "good" : ""}"><span>${label}</span>${icon(ico)}<strong>${value}</strong><small>${sub}</small></div>`;
@@ -131,6 +211,14 @@ export function createPortal({ api, me, toast, onSettings }) {
   function personCell(x) {
     return `<div class="person-cell"><span class="user-initials">${e(initials(x.discord_name))}</span><div><strong>${e(x.discord_name)}</strong><small>${e(x.discord_id)}</small></div></div>`;
   }
+  function personRoles(person) {
+    try {
+      const roles = JSON.parse(person.discord_roles || "[]");
+      return Array.isArray(roles) ? roles : [];
+    } catch {
+      return [];
+    }
+  }
   function dashboard() {
     const p = data.personnel,
       active = p.filter((x) => x.active).length,
@@ -178,9 +266,44 @@ export function createPortal({ api, me, toast, onSettings }) {
       )}</div>${panel("Personeelsoverzicht", personnelTable(rowsFiltered(p).slice(0, 5)), `<button data-tab="personnel">Alles bekijken ${icon("arrow")}</button>`)}<div class="security-note">${icon("shield")} ${me.permissions.policeWrite ? "Je hebt beheerrechten. Wijzigingen worden blijvend opgeslagen en geregistreerd in het activiteitenlog." : "Je hebt leesrechten. Personeelsgegevens en roepnummers worden beheerd door de korpsleiding."}</div>`
     );
   }
+  function dutyboard() {
+    const active = data.personnel.filter((person) => person.active);
+    return (
+      header(
+        "Dienstbord",
+        "Actieve medewerkers, hun rang, roepnummer en standplaats in één overzicht.",
+        action("refresh", "Vernieuwen", "refresh"),
+      ) +
+      `<div class="stats-grid">${stat("Actief op het bord", active.length, "activity", "Volgens de personeelsstatus", true)}${stat("Inactief", data.personnel.length - active.length, "users", "Niet ingeroosterd of buiten dienst")}</div>${panel("Actieve dienst", personnelTable(rowsFiltered(active)), `<button data-tab="personnel">Personeel beheren ${icon("arrow")}</button>`)}<p class="panel-note">De status komt uit de personeelslijst. Dit bord toont geen live locatiegegevens.</p>`
+    );
+  }
+  function ownerDashboard() {
+    const audits = data.audit || [],
+      active = data.personnel.filter((x) => x.active);
+    return (
+      header(
+        "Systeembeheer",
+        `Welkom, ${e(me.discordName)}. Beheer accounts en instellingen van het portaal.`,
+        action("refresh", "Vernieuwen", "refresh"),
+      ) +
+      `<div class="stats-grid">${stat("Actieve accounts", data.accounts.filter((x) => x.enabled).length, "users", "Met portaaltoegang", true)}${stat("Politiepersoneel", data.personnel.length, "shield", `${active.length} actief`)}${stat("Roepnummers", data.callsigns.length, "table", `${data.callsigns.filter((x) => !x.personnel_id).length} vrij`)}</div><div class="two-column">${panel("Beheer", `<div class="panel-body"><button class="button secondary" data-tab="accounts">Accounts beheren ${icon("arrow")}</button><button class="button secondary" data-tab="settings">Systeeminstellingen ${icon("arrow")}</button></div>`)}${panel(
+        "Laatste wijzigingen",
+        `<div class="panel-body">${
+          audits
+            .slice(0, 6)
+            .map(
+              (x) =>
+                `<div class="activity-row"><span class="activity-dot">${icon("clock")}</span><div><strong>${e(x.action.replaceAll(".", " · ").replaceAll("_", " "))}</strong><small>${e(x.actor_name)} · ${date(x.created_at)}</small></div></div>`,
+            )
+            .join("") ||
+          empty("Nog geen wijzigingen", "Beheeracties verschijnen hier.")
+        }</div>`,
+      )}</div>`
+    );
+  }
   function personnelTable(rows) {
     return rows.length
-      ? `<div class="table-scroll"><table><thead><tr><th><button data-sort="name">Medewerker ↕</button></th><th><button data-sort="rank">Rang ↕</button></th><th><button data-sort="number">Roepnummer ↕</button></th><th>Standplaats</th><th>Status</th><th>Acties</th></tr></thead><tbody>${rows.map((x) => `<tr><td>${personCell(x)}</td><td><span class="rank-tag">${e(x.rank)}</span></td><td><span class="callsign">${e(x.callsign || "—")}</span>${x.callsign ? tiny("copy", "Roepnummer kopiëren", "copy", x.callsign) : x.callsign_issue ? `<small class="callsign-warning" title="${e(x.callsign_issue)}">Controle nodig</small>` : ""}</td><td>${e(x.place || "Niet ingesteld")}</td><td><span class="tag ${x.active ? "active" : "inactive"}">${x.active ? "Actief" : "Inactief"}</span></td><td><div class="row-actions">${tiny("view-person", "Personeelslid bekijken", "file", x.id)}${me.permissions.policeWrite ? tiny("edit-person", "Bewerken", "edit", x.id) + tiny("delete-person", "Verwijderen", "trash", x.id, "danger") : ""}</div></td></tr>`).join("")}</tbody></table></div>`
+      ? `<div class="table-scroll"><table><thead><tr><th><button data-sort="name">Medewerker ↕</button></th><th><button data-sort="rank">Rang ↕</button></th><th><button data-sort="number">Roepnummer ↕</button></th><th>Standplaats</th><th>Status</th><th>Acties</th></tr></thead><tbody>${rows.map((x) => `<tr><td>${personCell(x)}</td><td><span class="rank-tag">${e(x.rank)}</span></td><td><span class="callsign">${e(x.callsign || "—")}</span>${x.callsign ? tiny("copy", "Roepnummer kopiëren", "copy", x.callsign) : x.callsign_issue ? `<small class="callsign-warning" title="${e(x.callsign_issue)}">Controle nodig</small>` : ""}</td><td>${e(x.place || "Niet ingesteld")}</td><td><span class="tag ${x.active ? "active" : "inactive"}">${x.active ? "Actief" : "Inactief"}</span></td><td><div class="row-actions">${tiny("view-person", "Personeelslid bekijken", "file", x.id)}${me.permissions.policeWrite ? (!x.callsign ? tiny("assign-person-number", "Vrij roepnummer koppelen", "badge", x.id) : "") + tiny("edit-person", "Bewerken", "edit", x.id) + tiny("delete-person", "Verwijderen", "trash", x.id, "danger") : ""}</div></td></tr>`).join("")}</tbody></table></div>`
       : empty(
           "Geen personeel gevonden",
           "Voeg een medewerker toe of pas je zoekopdracht aan.",
@@ -213,16 +336,20 @@ export function createPortal({ api, me, toast, onSettings }) {
   }
   function callsigns() {
     const rows = rowsFiltered(data.callsigns);
+    const freeRows = rows.filter((x) => !x.personnel_id);
+    const allVisibleSelected =
+      freeRows.length > 0 && freeRows.every((x) => selectedCallsigns.has(x.id));
     return (
       header(
         "Roepnummerregister",
         "Het centrale register. Zoek een nummer, bekijk de toewijzing of kopieer direct.",
         me.permissions.policeWrite
           ? action("export", "CSV exporteren", "download") +
-              action("add-number", "Roepnummer toevoegen", "plus", "primary")
+              action("deleted-callsigns", "Verwijderde nummers", "history") +
+              action("add-number", "Extra roepnummer", "plus", "primary")
           : readOnly(),
       ) +
-      `<div class="panel">${toolbar("callsigns", `<select id="status-filter" aria-label="Filter op bezetting"><option value="">Alle roepnummers</option><option value="free" ${statusFilter === "free" ? "selected" : ""}>Alleen vrije nummers</option><option value="active" ${statusFilter === "active" ? "selected" : ""}>Actief toegewezen</option></select><span class="toolbar-count">${rows.length} regels</span>`)}</div><div id="results">${callsignSections(rows)}</div>`
+      `<div class="panel">${toolbar("callsigns", `<select id="status-filter" aria-label="Filter op bezetting"><option value="">Alle roepnummers</option><option value="free" ${statusFilter === "free" ? "selected" : ""}>Alleen vrije nummers</option><option value="active" ${statusFilter === "active" ? "selected" : ""}>Actief toegewezen</option></select>${me.permissions.policeWrite ? `<label class="callsign-select-all"><input id="select-visible-callsigns" type="checkbox" ${allVisibleSelected ? "checked" : ""} ${freeRows.length ? "" : "disabled"}> Selecteer vrije</label><button id="delete-selected-callsigns" class="button danger" data-portal="delete-selected-callsigns" ${selectedCallsigns.size ? "" : "disabled"}>${icon("trash")} Verwijderen (<span>${selectedCallsigns.size}</span>)</button>` : ""}<span class="toolbar-count">${rows.length} regels</span>`)}</div><div id="results">${callsignSections(rows)}</div>`
     );
   }
   function callsignSections(rows) {
@@ -237,7 +364,7 @@ export function createPortal({ api, me, toast, onSettings }) {
           const items = rows
             .filter((x) => x.rank_id === r.id)
             .sort((a, b) => a.slot - b.slot);
-          return `<section class="sheet-section"><div class="sheet-title"><strong><em>${e(r.code)}</em>${e(r.label)}</strong><span>${items.length} regels ${r.special ? "· speciaal ingesteld" : ""}</span></div><div class="table-scroll"><table><thead><tr><th>Roepnummer</th><th>Discord-naam</th><th>Plaats</th><th>Rang</th>${me.permissions.policeWrite ? "<th>Beheer</th>" : ""}</tr></thead><tbody>${items.map((x) => `<tr><td><span class="callsign">${e(x.number)}</span>${tiny("copy", "Roepnummer kopiëren", "copy", x.number)}</td><td>${x.discord_name ? e(x.discord_name) : '<span class="free-text">Vrij beschikbaar</span>'}</td><td>${e(x.place || "—")}</td><td><span class="rank-tag">${e(r.label)}</span></td>${me.permissions.policeWrite ? `<td><div class="row-actions">${tiny("edit-number", "Roepnummer bewerken", "edit", x.id)}${!x.personnel_id ? tiny("delete-number", "Roepnummer verwijderen", "trash", x.id, "danger") : ""}</div></td>` : ""}</tr>`).join("")}</tbody></table></div></section>`;
+          return `<section class="sheet-section"><div class="sheet-title"><strong><em>${e(r.code)}</em>${e(r.label)}</strong><span>${items.length} regels ${r.special ? "· speciaal ingesteld" : ""}</span>${me.permissions.policeWrite ? action("add-number", "Extra roepnummer", "plus", "secondary", r.id) : ""}</div><div class="table-scroll"><table><thead><tr>${me.permissions.policeWrite ? "<th>Selecteer</th>" : ""}<th>Roepnummer</th><th>Discord-naam</th><th>Plaats</th><th>Rang</th>${me.permissions.policeWrite ? "<th>Beheer</th>" : ""}</tr></thead><tbody>${items.map((x) => `<tr>${me.permissions.policeWrite ? `<td><input class="callsign-select" type="checkbox" data-id="${e(x.id)}" aria-label="Selecteer ${e(x.number)}" ${selectedCallsigns.has(x.id) ? "checked" : ""} ${x.personnel_id ? 'disabled title="Maak eerst vrij"' : ""}></td>` : ""}<td><span class="callsign">${e(x.number)}</span>${tiny("copy", "Roepnummer kopiëren", "copy", x.number)}</td><td>${x.discord_name ? e(x.discord_name) : '<span class="free-text">Vrij beschikbaar</span>'}</td><td>${e(x.place || "—")}</td><td><span class="rank-tag">${e(r.label)}</span></td>${me.permissions.policeWrite ? `<td><div class="row-actions">${tiny("edit-number", "Roepnummer bewerken", "edit", x.id)}${!x.personnel_id ? tiny("delete-number", "Roepnummer verwijderen", "trash", x.id, "danger") : ""}</div></td>` : ""}</tr>`).join("")}</tbody></table></div></section>`;
         })
         .join("") ||
       empty(
@@ -304,14 +431,7 @@ export function createPortal({ api, me, toast, onSettings }) {
     );
   }
   function auditPage() {
-    const rows = data.audit.filter(
-      (x) =>
-        !query ||
-        [x.actor_name, x.action, x.target, date(x.created_at)]
-          .join(" ")
-          .toLowerCase()
-          .includes(query.toLowerCase()),
-    );
+    const rows = filteredAudit();
     return (
       header(
         "Activiteitenlog",
@@ -320,8 +440,47 @@ export function createPortal({ api, me, toast, onSettings }) {
       ) +
       panel(
         "Geregistreerde wijzigingen",
-        `<div class="toolbar"><label class="search-control">${icon("search")}<input id="table-search" type="search" value="${e(query)}" placeholder="Zoeken in het log..." aria-label="Zoeken in activiteiten"></label><span class="toolbar-count">${rows.length} acties</span></div><div id="results">${auditTable(rows)}</div>`,
+        `<div class="toolbar"><label class="search-control">${icon("search")}<input id="table-search" type="search" value="${e(query)}" placeholder="Zoeken in het log..." aria-label="Zoeken in activiteiten"></label><select id="audit-action" aria-label="Filter op actie"><option value="">Alle acties</option>${[
+          ...new Set(data.audit.map((x) => x.action)),
+        ]
+          .sort()
+          .map(
+            (x) =>
+              `<option value="${e(x)}" ${auditAction === x ? "selected" : ""}>${e(x)}</option>`,
+          )
+          .join(
+            "",
+          )}</select><select id="audit-actor" aria-label="Filter op medewerker"><option value="">Alle medewerkers</option>${[
+          ...new Set(data.audit.map((x) => x.actor_name)),
+        ]
+          .sort((a, b) => a.localeCompare(b, "nl"))
+          .map(
+            (x) =>
+              `<option value="${e(x)}" ${auditActor === x ? "selected" : ""}>${e(x)}</option>`,
+          )
+          .join(
+            "",
+          )}</select><label class="audit-date-filter">Vanaf<input id="audit-from" type="date" value="${e(auditFrom)}" aria-label="Vanaf datum"></label><label class="audit-date-filter">Tot<input id="audit-to" type="date" value="${e(auditTo)}" aria-label="Tot datum"></label><span class="toolbar-count">${rows.length} acties</span></div><div id="results">${auditTable(rows)}</div>`,
       )
+    );
+  }
+  function filteredAudit() {
+    return data.audit.filter(
+      (x) =>
+        (!auditAction || x.action === auditAction) &&
+        (!auditActor || x.actor_name === auditActor) &&
+        (!auditFrom ||
+          x.created_at >= new Date(auditFrom + "T00:00:00").toISOString()) &&
+        (!auditTo ||
+          x.created_at <
+            new Date(
+              new Date(auditTo + "T00:00:00").getTime() + 86400000,
+            ).toISOString()) &&
+        (!query ||
+          [x.actor_name, x.action, x.target, date(x.created_at)]
+            .join(" ")
+            .toLowerCase()
+            .includes(query.toLowerCase())),
     );
   }
   function auditTable(rows) {
@@ -389,12 +548,15 @@ export function createPortal({ api, me, toast, onSettings }) {
     );
   }
   function render() {
-    const available = routes.filter((x) => me.permissions[x.right]);
+    const available = routes.filter(
+      (x) => x.section === section && me.permissions[x.right],
+    );
     if (!available.some((x) => x.id === tab))
       tab = available[0]?.id || "dashboard";
     const label = routes.find((x) => x.id === tab)?.label;
+    const appLabel = section === "admin" ? "SYSTEEMBEHEER" : "POLITIE";
     $("app-body").innerHTML =
-      `<aside class="police-sidebar"><div class="agency-brand">${icon("shield")}<div><strong>POLITIE</strong><small>AMSTERDAM</small></div></div><span class="nav-label">WERKOMGEVING</span><nav class="police-nav">${available.map((x) => `<button data-tab="${x.id}" class="${tab === x.id ? "active" : ""}" title="${x.label}">${icon(x.icon)}<span>${x.label}</span></button>`).join("")}</nav><div class="sidebar-bottom"><span class="status-dot"></span><div>Beveiligde omgeving<small>Discord-identiteit gecontroleerd</small></div></div></aside><main class="portal-main"><header class="portal-topbar"><div class="breadcrumb">Overheid ${icon("chevron")} Politie ${icon("chevron")} <strong>${label}</strong></div><div class="portal-user"><span class="user-initials">${e(initials(me.discordName))}</span><div>${e(me.discordName)}<small>${me.permissions.admin ? "Overheidsbeheerder" : me.permissions.policeWrite ? "Korpsleiding" : "Politieagent"}</small></div></div></header><div class="portal-content">${({ dashboard, personnel, callsigns, archive, ranks, audit: auditPage, accounts, settings }[tab] || dashboard)()}</div></main>`;
+      `<aside class="police-sidebar"><div class="agency-brand">${icon(section === "admin" ? "settings" : "shield")}<div><strong>${appLabel}</strong><small>AMSTERDAM</small></div></div><span class="nav-label">WERKOMGEVING</span><nav class="police-nav">${available.map((x) => `<button data-tab="${x.id}" class="${tab === x.id ? "active" : ""}" title="${x.label}">${icon(x.icon)}<span>${x.label}</span></button>`).join("")}</nav><div class="sidebar-bottom"><span class="status-dot"></span><div>Beveiligde omgeving<small>Discord-identiteit gecontroleerd</small></div></div></aside><main class="portal-main"><header class="portal-topbar"><div class="breadcrumb">Overheid ${icon("chevron")} ${appLabel} ${icon("chevron")} <strong>${label}</strong></div><div class="portal-user"><span class="user-initials">${e(initials(me.discordName))}</span><div>${e(me.discordName)}<small>${me.permissions.owner ? "Eigenaar" : me.permissions.admin ? "Overheidsbeheerder" : me.permissions.policeWrite ? "Korpsleiding" : "Politieagent"}</small></div></div></header><div class="portal-content">${({ dashboard, dutyboard, personnel, callsigns, archive, ranks, audit: auditPage, "system-audit": auditPage, owner: ownerDashboard, accounts, settings }[tab] || dashboard)()}</div></main>`;
     $("app-body").onclick = click;
     $("app-body").oninput = input;
     $("app-body").onchange = change;
@@ -407,16 +569,26 @@ export function createPortal({ api, me, toast, onSettings }) {
       root.innerHTML = personnelTable(rowsFiltered(data.personnel));
     if (tab === "callsigns")
       root.innerHTML = callsignSections(rowsFiltered(data.callsigns));
-    if (tab === "archive") root.innerHTML = archiveCards(archiveFiltered());
-    if (tab === "audit")
-      root.innerHTML = auditTable(
-        data.audit.filter((x) =>
-          [x.actor_name, x.action, x.target, date(x.created_at)]
-            .join(" ")
-            .toLowerCase()
-            .includes(query.toLowerCase()),
+    if (tab === "callsigns") {
+      const freeRows = rowsFiltered(data.callsigns).filter(
+          (row) => !row.personnel_id,
         ),
-      );
+        selectVisible = $("select-visible-callsigns"),
+        deleteSelected = $("delete-selected-callsigns");
+      if (selectVisible) {
+        selectVisible.disabled = freeRows.length === 0;
+        selectVisible.checked =
+          freeRows.length > 0 &&
+          freeRows.every((row) => selectedCallsigns.has(row.id));
+      }
+      if (deleteSelected) {
+        deleteSelected.disabled = selectedCallsigns.size === 0;
+        deleteSelected.querySelector("span").textContent =
+          selectedCallsigns.size;
+      }
+    }
+    if (tab === "archive") root.innerHTML = archiveCards(archiveFiltered());
+    if (tab === "audit") root.innerHTML = auditTable(filteredAudit());
     const count = document.querySelector(".toolbar-count");
     if (count)
       count.textContent =
@@ -442,6 +614,25 @@ export function createPortal({ api, me, toast, onSettings }) {
     }
   }
   function change(ev) {
+    if (ev.target.id === "audit-action") auditAction = ev.target.value;
+    if (ev.target.id === "audit-actor") auditActor = ev.target.value;
+    if (ev.target.id === "audit-from") auditFrom = ev.target.value;
+    if (ev.target.id === "audit-to") auditTo = ev.target.value;
+    if (ev.target.id === "select-visible-callsigns") {
+      for (const row of rowsFiltered(data.callsigns)) {
+        if (row.personnel_id) continue;
+        if (ev.target.checked) selectedCallsigns.add(row.id);
+        else selectedCallsigns.delete(row.id);
+      }
+      updateResults();
+      return;
+    }
+    if (ev.target.matches(".callsign-select")) {
+      if (ev.target.checked) selectedCallsigns.add(ev.target.dataset.id);
+      else selectedCallsigns.delete(ev.target.dataset.id);
+      updateResults();
+      return;
+    }
     if (ev.target.id === "rank-filter") rankFilter = ev.target.value;
     if (ev.target.id === "status-filter") statusFilter = ev.target.value;
     if (ev.target.id === "category-filter") categoryFilter = ev.target.value;
@@ -519,8 +710,49 @@ export function createPortal({ api, me, toast, onSettings }) {
       }
     };
   }
-  function numberForm(row) {
-    const rankId = row?.rank_id || data.ranks[0]?.id;
+  function assignCallsignForm(person) {
+    const available = data.callsigns
+      .filter((x) => x.rank_id === person.rank_id && !x.personnel_id)
+      .map((x) => ({ id: x.id, label: x.number }));
+    if (!available.length) {
+      toast("Er zijn geen vrije roepnummers voor deze rang.", true);
+      return;
+    }
+    modal(
+      "Roepnummer koppelen aan " + person.discord_name,
+      `${select("Vrij roepnummer", "callsignId", available, available[0].id, "required")}<p class="panel-note">Alleen vrije roepnummers uit de rang ${e(person.rank)} worden getoond.</p>`,
+      async (form) => {
+        await api("/api/personnel/" + person.id, {
+          method: "PUT",
+          body: {
+            discordName: person.discord_name,
+            discordId: person.discord_id,
+            rankId: person.rank_id,
+            callsignId: form.get("callsignId"),
+            place: person.place || "",
+            active: Boolean(person.active),
+          },
+        });
+      },
+    );
+  }
+  async function deletedCallsignsModal() {
+    const { callsigns: deleted } = await api("/api/callsigns/deleted");
+    modal(
+      "Verwijderde roepnummers",
+      deleted.length
+        ? `<p class="panel-note">Je kunt een nummer binnen 30 minuten herstellen. Daarna wordt het definitief opgeruimd.</p><div class="table-scroll"><table><thead><tr><th>Nummer</th><th>Rang</th><th>Hersteltermijn</th><th></th></tr></thead><tbody>${deleted.map((x) => `<tr><td class="callsign">${e(x.number)}</td><td>${e(data.ranks.find((r) => r.id === x.rank_id)?.label || "Onbekende rang")}</td><td>${Math.max(0, Math.ceil((new Date(x.expiresAt) - Date.now()) / 60000))} min.</td><td>${tiny("restore-number", "Roepnummer herstellen", "refresh", x.id)}</td></tr>`).join("")}</tbody></table></div>`
+        : empty(
+            "Geen verwijderde nummers",
+            "Verwijderde nummers zijn 30 minuten herstelbaar.",
+            "history",
+          ),
+      null,
+      { read: true },
+    );
+  }
+  function numberForm(row, preferredRankId = "") {
+    const rankId = row?.rank_id || preferredRankId || data.ranks[0]?.id;
     const people = (rank) => [
       { id: "", label: "Vrij beschikbaar" },
       ...data.personnel
@@ -633,6 +865,26 @@ export function createPortal({ api, me, toast, onSettings }) {
       const a = button.dataset.portal,
         key = button.dataset.id;
       if (!a) return;
+      if (a === "delete-selected-callsigns") {
+        if (!selectedCallsigns.size) return;
+        if (
+          !confirm(
+            `Weet je zeker dat je ${selectedCallsigns.size} vrije roepnummers wilt verwijderen? Je kunt ze binnen 30 minuten herstellen.`,
+          )
+        )
+          return;
+        const result = await api("/api/callsigns", {
+          method: "DELETE",
+          body: { ids: [...selectedCallsigns] },
+        });
+        selectedCallsigns.clear();
+        await load();
+        render();
+        toast(
+          `${result.deleted} roepnummer(s) verwijderd. Herstellen kan 30 minuten.`,
+        );
+        return;
+      }
       if (a === "refresh") {
         await load();
         render();
@@ -677,11 +929,16 @@ export function createPortal({ api, me, toast, onSettings }) {
       if (a === "add-person") personForm();
       if (a === "edit-person")
         personForm(data.personnel.find((x) => x.id === key));
+      if (a === "assign-person-number") {
+        if ($("dialog").open) $("dialog").close();
+        assignCallsignForm(data.personnel.find((x) => x.id === key));
+      }
       if (a === "view-person") {
-        const x = data.personnel.find((x) => x.id === key);
+        const x = data.personnel.find((x) => x.id === key),
+          roles = personRoles(x);
         modal(
           x.discord_name,
-          `<dl class="help-list"><dt>Rang</dt><dd>${e(x.rank)}</dd><dt>Roepnummer</dt><dd>${e(x.callsign || "Niet toegewezen")}${x.callsign_issue ? `<br><small class="callsign-warning">${e(x.callsign_issue)}</small>` : ""}</dd><dt>Discord-ID</dt><dd>${e(x.discord_id)}</dd><dt>Plaats</dt><dd>${e(x.place || "Niet ingesteld — laat de korpsleiding dit aanvullen")}</dd><dt>Status</dt><dd>${x.active ? "Actief" : "Inactief"}</dd></dl>`,
+          `<dl class="help-list"><dt>Rang</dt><dd>${e(x.rank)}</dd><dt>Roepnummer</dt><dd>${e(x.callsign || "Niet toegewezen")}${x.callsign_issue ? `<br><small class="callsign-warning">${e(x.callsign_issue)}</small>` : ""}</dd><dt>Discord-ID</dt><dd>${e(x.discord_id)}</dd><dt>Plaats</dt><dd>${e(x.place || "Niet ingesteld — laat de korpsleiding dit aanvullen")}</dd><dt>Status</dt><dd>${x.active ? "Actief" : "Inactief"}</dd><dt>Discord-rollen</dt><dd>${roles.length ? roles.map((role) => `<span class="rank-tag" title="${e(role.id)}">${e(role.name)}</span>`).join(" ") : "Nog niet gesynchroniseerd"}</dd></dl><div class="heading-actions"><a class="button secondary" href="https://discord.com/users/${encodeURIComponent(x.discord_id)}" target="_blank" rel="noopener noreferrer">${icon("discord")} Discord-profiel openen</a>${me.permissions.policeWrite && !x.callsign ? action("assign-person-number", "Vrij roepnummer koppelen", "badge", "primary", x.id) : ""}</div>`,
           null,
           { read: true },
         );
@@ -691,14 +948,27 @@ export function createPortal({ api, me, toast, onSettings }) {
           "/api/personnel/" + key,
           "Dit personeelslid definitief verwijderen? Het roepnummer wordt vrijgemaakt.",
         );
-      if (a === "add-number") numberForm();
+      if (a === "add-number") numberForm(null, key);
       if (a === "edit-number")
         numberForm(data.callsigns.find((x) => x.id === key));
-      if (a === "delete-number")
+      if (a === "delete-number") {
+        selectedCallsigns.delete(key);
         await remove(
           "/api/callsigns/" + key,
-          "Dit vrije roepnummer definitief verwijderen?",
+          "Dit vrije roepnummer verwijderen? Je kunt het binnen 30 minuten herstellen.",
         );
+      }
+      if (a === "deleted-callsigns") await deletedCallsignsModal();
+      if (a === "restore-number") {
+        await api("/api/callsigns/deleted/" + key + "/restore", {
+          method: "POST",
+          body: {},
+        });
+        $("dialog").close();
+        await load();
+        render();
+        toast("Het roepnummer is hersteld.");
+      }
       if (a === "add-rank") await rankForm();
       if (a === "edit-rank")
         await rankForm(data.ranks.find((x) => x.id === key));
