@@ -18,6 +18,7 @@ export function openDatabase(config) {
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
  CREATE TABLE IF NOT EXISTS settings(id INTEGER PRIMARY KEY CHECK(id=1),value TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,username TEXT NOT NULL COLLATE NOCASE UNIQUE,discord_id TEXT NOT NULL UNIQUE,password_hash TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,must_change INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS account_access(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,profile TEXT NOT NULL,permissions TEXT NOT NULL,updated_at TEXT NOT NULL,updated_by TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS sessions(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,csrf TEXT NOT NULL,tokens TEXT NOT NULL,expires_at INTEGER NOT NULL,last_seen INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS auth_flows(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,expires_at INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS signup_flows(hash TEXT PRIMARY KEY,username TEXT NOT NULL,expires_at INTEGER NOT NULL);
@@ -148,6 +149,35 @@ export const publicUser = (user) => ({
   mustChange: Boolean(user.must_change),
   createdAt: user.created_at,
 });
+export function getAccountAccess(db, userId) {
+  const row = db
+    .prepare("SELECT profile,permissions FROM account_access WHERE user_id=?")
+    .get(userId);
+  if (!row) return null;
+  try {
+    return { profile: row.profile, permissions: JSON.parse(row.permissions) };
+  } catch {
+    return null;
+  }
+}
+export function setAccountAccess(db, userId, access, actorId) {
+  if (!access || access.profile === "discord") {
+    db.prepare("DELETE FROM account_access WHERE user_id=?").run(userId);
+    return;
+  }
+  db.prepare(
+    `INSERT INTO account_access(user_id,profile,permissions,updated_at,updated_by)
+     VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET
+     profile=excluded.profile,permissions=excluded.permissions,
+     updated_at=excluded.updated_at,updated_by=excluded.updated_by`,
+  ).run(
+    userId,
+    access.profile,
+    JSON.stringify(access.permissions),
+    timestamp(),
+    actorId,
+  );
+}
 export function audit(db, actor, action, target, before = null, after = null) {
   db.prepare(
     "INSERT INTO audit(actor_id,actor_name,action,target,before_json,after_json,created_at) VALUES(?,?,?,?,?,?,?)",

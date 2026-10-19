@@ -1592,6 +1592,95 @@ th button {
   height: 15px;
   margin: 0;
 }
+.access-editor {
+  margin: 16px 0 20px;
+  padding: 16px;
+  border: 1px solid #dce6f0;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #f8fbff, #f2f6fb);
+}
+.access-editor > .field {
+  margin-bottom: 12px;
+}
+.access-permissions {
+  min-width: 0;
+  margin: 0;
+  padding: 13px 0 0;
+  border: 0;
+  border-top: 1px solid #dfe8f1;
+}
+.access-permissions[hidden] {
+  display: none;
+}
+.access-permissions legend {
+  padding: 11px 0 0;
+  color: #45637f;
+  font-size: 11px;
+  font-weight: 650;
+}
+.access-scope-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.access-scope {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid #dce5ef;
+  border-radius: 6px;
+  background: #fff;
+  color: #405b76;
+  font-size: 11px;
+  cursor: pointer;
+}
+.access-scope:has(input:checked) {
+  border-color: #83b1e2;
+  background: #edf6ff;
+  color: #245a91;
+}
+.access-scope input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #2878c9;
+}
+.access-permissions > p {
+  margin: 11px 0 0;
+  color: #75889d;
+  font-size: 10px;
+  line-height: 1.7;
+}
+.access-owner-note {
+  margin: 14px 0;
+}
+.access-cell {
+  min-width: 190px;
+  white-space: normal;
+}
+.permission-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.permission-chip {
+  display: inline-flex;
+  padding: 3px 6px;
+  border: 1px solid #dce8f5;
+  border-radius: 999px;
+  background: #f3f8fd;
+  color: #54718d;
+  font-size: 9px;
+  line-height: 1.4;
+}
+.permission-muted {
+  color: #8b9bad;
+  font-size: 10px;
+}
 .audit-action {
   color: #366292;
   font-family: Consolas, monospace;

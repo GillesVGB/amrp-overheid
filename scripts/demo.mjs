@@ -26,6 +26,7 @@ const db = openDatabase(config),
   settings = getSettings(db),
   identities = {};
 const accounts = [
+  ["eigenaar", "990000000000000004", "owner"],
   ["beheer", "990000000000000001", "admin"],
   ["leiding", "990000000000000002", "command"],
   ["agent", "990000000000000003", "police"],
@@ -100,7 +101,7 @@ const service = await createApp(config, {
 });
 const server = service.app.listen(4401, "127.0.0.1", () =>
   console.log(
-    "Lokale demonstratie: http://127.0.0.1:4401\nAccounts: beheer, leiding, agent • wachtwoord: Werkplek-Demo2026!\nAlleen loopback. Geen verbinding met echte Discord.",
+    "Lokale demonstratie: http://127.0.0.1:4401\nAccounts: eigenaar, beheer, leiding, agent • wachtwoord: Werkplek-Demo2026!\nAlleen loopback. Geen verbinding met echte Discord.",
   ),
 );
 for (const signal of ["SIGINT", "SIGTERM"])

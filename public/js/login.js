@@ -27,15 +27,17 @@ try {
   // Use the default wallpaper when storage is unavailable.
 }
 $("default-account-name").textContent = defaultUsername || "Gebruiker";
-$("login-name").textContent = rememberedUsername || "Gebruiker";
+$("login-name").textContent = rememberedUsername || "Aanmelden";
 $("username").value = defaultUsername;
 $("username").hidden = Boolean(rememberedUsername);
+$("other-user").hidden = !rememberedUsername;
 document
   .querySelectorAll("[data-icon]")
   .forEach((el) => (el.innerHTML = icon(el.dataset.icon)));
 $("other-user").addEventListener("click", () => {
   $("login-form").hidden = false;
   $("other-user").hidden = true;
+  $("login-name").textContent = "Andere gebruiker";
   $("username").hidden = false;
   $("username").value = "";
   $("username").focus();
@@ -75,7 +77,7 @@ $("register-cancel").addEventListener("click", () => {
   $("register-form").hidden = true;
   $("register-toggle").hidden = false;
   $("login-form").hidden = false;
-  $("login-name").textContent = defaultUsername;
+  $("login-name").textContent = defaultUsername || "Aanmelden";
   $("login-error").textContent = "";
 });
 $("register-form").addEventListener("submit", async (event) => {

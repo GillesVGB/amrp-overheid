@@ -5,6 +5,7 @@ import {
   decrypt,
   cookieMap,
   permissions,
+  applyAccountAccess,
   HttpError,
   requireValue,
   verifyPassword,
@@ -13,6 +14,7 @@ import {
 } from "./security.mjs";
 import {
   getSettings,
+  getAccountAccess,
   publicUser,
   audit,
   id,
@@ -210,10 +212,10 @@ export function authentication({
         "De Discord-identiteit komt niet overeen.",
       );
       const settings = getSettings(db),
-        grants = permissions(
-          verified.roles,
+        grants = applyAccountAccess(
+          permissions(verified.roles, settings, config.roles.owner || []),
+          getAccountAccess(db, user.id),
           settings,
-          config.roles.owner || [],
         );
       requireValue(
         Object.values(grants).some(Boolean),
@@ -319,10 +321,14 @@ export function authentication({
           verified = await member(tokens);
         requireValue(
           Object.values(
-            permissions(
-              verified.roles,
+            applyAccountAccess(
+              permissions(
+                verified.roles,
+                getSettings(db),
+                config.roles.owner || [],
+              ),
+              getAccountAccess(db, user.id),
               getSettings(db),
-              config.roles.owner || [],
             ),
           ).some(Boolean),
           403,
@@ -529,10 +535,14 @@ export function authentication({
         );
         requireValue(
           Object.values(
-            permissions(
-              verified.roles,
+            applyAccountAccess(
+              permissions(
+                verified.roles,
+                getSettings(db),
+                config.roles.owner || [],
+              ),
+              getAccountAccess(db, user.id),
               getSettings(db),
-              config.roles.owner || [],
             ),
           ).some(Boolean),
           403,

@@ -570,6 +570,79 @@ test("Volledige werkplek: login, rollen, opslag, archief en accountbeheer", asyn
     },
   );
   await t.test(
+    "Eigenaar kan per account een rol en beperkte bevoegdheden instellen",
+    async () => {
+      const newPassword = "Rol-TestPassword-2026!";
+      const created = await owner.request("/api/accounts", {
+        method: "POST",
+        body: {
+          username: "rechten",
+          discordId: "990000000000000012",
+          password: newPassword,
+          accessProfile: "archive",
+          accessPermissions: { archive: true },
+        },
+      });
+      assert.equal(created.status, 201);
+      const permissionsClient = client();
+      assert.equal(
+        (await permissionsClient.login("rechten", newPassword)).status,
+        200,
+      );
+      await permissionsClient.request("/api/password", {
+        method: "POST",
+        body: {
+          currentPassword: newPassword,
+          newPassword: "Rol-Gewijzigd-2026!",
+        },
+      });
+      const access = (await permissionsClient.request("/api/me")).data
+        .permissions;
+      assert.equal(access.archive, true);
+      assert.equal(access.policeRead, false);
+      assert.equal(access.accounts, false);
+      assert.equal(access.settings, false);
+      const row = (await owner.request("/api/bootstrap")).data.accounts.find(
+        (account) => account.id === created.data.id,
+      );
+      assert.equal(row.accessProfile, "archive");
+      assert.equal(row.accessPermissions.archive, true);
+
+      assert.equal(
+        (
+          await owner.request("/api/accounts/" + created.data.id, {
+            method: "PUT",
+            body: {
+              accessProfile: "custom",
+              accessPermissions: {
+                policeWrite: true,
+                ambulance: true,
+                accounts: true,
+                settings: true,
+                owner: true,
+                admin: true,
+              },
+            },
+          })
+        ).status,
+        200,
+      );
+      assert.equal(
+        (await permissionsClient.login("rechten", "Rol-Gewijzigd-2026!"))
+          .status,
+        200,
+      );
+      const changed = (await permissionsClient.request("/api/me")).data
+        .permissions;
+      assert.equal(changed.policeRead, true);
+      assert.equal(changed.policeWrite, true);
+      assert.equal(changed.accounts, false);
+      assert.equal(changed.settings, false);
+      assert.equal(changed.owner, false);
+      assert.equal(changed.admin, false);
+    },
+  );
+  await t.test(
     "Audit registreert wijzigingen zonder wachtwoorden of tokens",
     async () => {
       const result = (await admin.request("/api/bootstrap")).data;

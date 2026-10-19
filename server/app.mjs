@@ -13,6 +13,8 @@ import {
   timestamp,
   audit,
   publicUser,
+  getAccountAccess,
+  setAccountAccess,
   listPersonnel,
   listCallsigns,
   savePersonnel,
@@ -30,6 +32,7 @@ import {
   verifyPassword,
   detectFile,
   permissions,
+  normalizeAccountAccess,
 } from "./security.mjs";
 import { createDiscordSync } from "./discord-sync.mjs";
 const publicDir = fileURLToPath(new URL("../public/", import.meta.url));
@@ -248,9 +251,19 @@ export async function createApp(config, options = {}) {
         : [],
       accounts: g.accounts
         ? db
-            .prepare("SELECT * FROM users ORDER BY username")
+            .prepare(
+              `SELECT u.*,a.profile access_profile,a.permissions access_permissions
+               FROM users u LEFT JOIN account_access a ON a.user_id=u.id
+               ORDER BY u.username`,
+            )
             .all()
-            .map(publicUser)
+            .map((row) => ({
+              ...publicUser(row),
+              accessProfile: row.access_profile || "discord",
+              accessPermissions: row.access_permissions
+                ? JSON.parse(row.access_permissions)
+                : {},
+            }))
         : [],
       audit: g.audit
         ? db.prepare("SELECT * FROM audit ORDER BY id DESC LIMIT 300").all()
@@ -658,7 +671,13 @@ export async function createApp(config, options = {}) {
     );
     const discordId = snowflake(req.body.discordId),
       hash = await hashPassword(req.body.password),
-      target = id();
+      target = id(),
+      access = Object.hasOwn(req.body, "accessProfile")
+        ? normalizeAccountAccess(
+            req.body.accessProfile,
+            req.body.accessPermissions,
+          )
+        : null;
     transaction(db, () => {
       db.prepare("INSERT INTO users VALUES(?,?,?,?,1,1,?)").run(
         target,
@@ -667,9 +686,12 @@ export async function createApp(config, options = {}) {
         hash,
         timestamp(),
       );
+      if (access) setAccountAccess(db, target, access, req.auth.user.id);
       audit(db, req.auth.user, "account.toegevoegd", target, null, {
         username,
         discordId,
+        accessProfile: access?.profile || "discord",
+        accessPermissions: access?.permissions || {},
       });
     });
     res.status(201).json({ id: target });
@@ -687,6 +709,17 @@ export async function createApp(config, options = {}) {
     const hash = req.body.password
       ? await hashPassword(req.body.password)
       : null;
+    const accessSpecified = Object.hasOwn(req.body, "accessProfile");
+    const beforeAccess = getAccountAccess(db, before.id);
+    const access = accessSpecified
+      ? normalizeAccountAccess(
+          req.body.accessProfile,
+          req.body.accessPermissions,
+        )
+      : beforeAccess;
+    const accessChanged =
+      accessSpecified &&
+      JSON.stringify(access || null) !== JSON.stringify(beforeAccess || null);
     transaction(db, () => {
       db.prepare(
         "UPDATE users SET enabled=?,password_hash=?,must_change=? WHERE id=?",
@@ -696,14 +729,28 @@ export async function createApp(config, options = {}) {
         hash ? 1 : before.must_change,
         before.id,
       );
+      if (accessSpecified)
+        setAccountAccess(db, before.id, access, req.auth.user.id);
       db.prepare("DELETE FROM sessions WHERE user_id=?").run(before.id);
       audit(
         db,
         req.auth.user,
-        hash ? "account.wachtwoord_hersteld" : "account.toegang_gewijzigd",
+        hash
+          ? "account.wachtwoord_hersteld"
+          : accessChanged
+            ? "account.machtigingen_gewijzigd"
+            : "account.toegang_gewijzigd",
         before.id,
-        { enabled: Boolean(before.enabled) },
-        { enabled: req.body.enabled !== false },
+        {
+          enabled: Boolean(before.enabled),
+          accessProfile: beforeAccess?.profile || "discord",
+          accessPermissions: beforeAccess?.permissions || {},
+        },
+        {
+          enabled: req.body.enabled !== false,
+          accessProfile: access?.profile || "discord",
+          accessPermissions: access?.permissions || {},
+        },
       );
     });
     res.json({ ok: true });

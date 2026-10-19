@@ -135,6 +135,55 @@ export function permissions(roles, settings, ownerRoles = []) {
       Boolean(settings.ambulanceEnabled && (admin || has("ambulance"))),
   };
 }
+export const ACCOUNT_ACCESS_SCOPES = [
+  "policeRead",
+  "policeWrite",
+  "archive",
+  "audit",
+  "ranks",
+  "ambulance",
+];
+export const ACCOUNT_ACCESS_PROFILES = [
+  "discord",
+  "police-agent",
+  "command",
+  "ambulance",
+  "archive",
+  "custom",
+];
+export function normalizeAccountAccess(profile, value = {}) {
+  requireValue(
+    ACCOUNT_ACCESS_PROFILES.includes(profile),
+    400,
+    "Kies een geldige accountrol.",
+  );
+  if (profile === "discord") return null;
+  requireValue(
+    value && typeof value === "object" && !Array.isArray(value),
+    400,
+    "De accountmachtigingen zijn ongeldig.",
+  );
+  const scopes = Object.fromEntries(
+    ACCOUNT_ACCESS_SCOPES.map((scope) => [scope, value[scope] === true]),
+  );
+  if (scopes.policeWrite) scopes.policeRead = true;
+  return { profile, permissions: scopes };
+}
+export function applyAccountAccess(base, access, settings) {
+  if (base.owner || !access?.permissions || access.profile === "discord")
+    return base;
+  const scopes = access.permissions;
+  return {
+    ...base,
+    policeRead: Boolean(scopes.policeRead || scopes.policeWrite),
+    policeWrite: Boolean(scopes.policeWrite),
+    archive: Boolean(scopes.archive),
+    audit: Boolean(scopes.audit),
+    ranks: Boolean(scopes.ranks),
+    ambulance:
+      base.owner || Boolean(settings.ambulanceEnabled && scopes.ambulance),
+  };
+}
 export function detectFile(buffer) {
   if (
     buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))

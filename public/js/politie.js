@@ -36,6 +36,31 @@ const textArea = (label, name, value = "", extra = "") =>
   `<label class="field">${label}<textarea name="${name}" ${extra}>${e(value)}</textarea></label>`;
 const readOnly = () =>
   `<span class="read-only-tag">${icon("lock")} Alleen lezen</span>`;
+const accountPermissionLabels = {
+  policeRead: "Politie lezen",
+  policeWrite: "Politie beheren",
+  archive: "Archief",
+  audit: "Activiteitenlog",
+  ranks: "Rangen beheren",
+  ambulance: "Ambulance",
+};
+const accountProfileLabels = {
+  discord: "Volgt Discord-rollen",
+  "police-agent": "Politieagent",
+  command: "Korpsleiding",
+  ambulance: "Ambulance",
+  archive: "Archiefmedewerker",
+  custom: "Aangepaste rol",
+};
+const accountProfileScopes = {
+  discord: [],
+  "police-agent": ["policeRead"],
+  command: ["policeRead", "policeWrite", "archive", "audit", "ranks"],
+  ambulance: ["ambulance"],
+  archive: ["policeRead", "archive"],
+  custom: [],
+};
+const accountPermissionEntries = Object.entries(accountPermissionLabels);
 const routes = [
   {
     id: "dashboard",
@@ -496,12 +521,28 @@ export function createPortal({
     return (
       header(
         "Toegangsbeheer",
-        "Accounts zijn gekoppeld aan een vaste Discord-identiteit. De Discord-rol bepaalt de rechten.",
+        "Stel per account een portaalrol en bevoegdheden in. De gekoppelde Discord-identiteit blijft altijd verplicht.",
         action("add-account", "Account toevoegen", "plus", "primary"),
       ) +
       panel(
         "Overheidsaccounts",
-        `<div class="table-scroll"><table><thead><tr><th>Gebruikersnaam</th><th>Discord-ID</th><th>Status</th><th>Wachtwoord</th><th>Beheer</th></tr></thead><tbody>${data.accounts.map((x) => `<tr><td>${e(x.username)}</td><td class="callsign">${e(x.discordId)}</td><td><span class="tag ${x.enabled ? "active" : "inactive"}">${x.enabled ? "Toegang actief" : "Uitgeschakeld"}</span></td><td>${x.mustChange ? "Tijdelijk wachtwoord" : "Persoonlijk ingesteld"}</td><td>${tiny("edit-account", "Account beheren", "settings", x.id)}${x.id !== me.user.id ? tiny("delete-account", "Account verwijderen", "trash", x.id, "danger") : ""}</td></tr>`).join("")}</tbody></table></div>`,
+        `<div class="table-scroll"><table><thead><tr><th>Gebruikersnaam</th><th>Discord-ID</th><th>Portaalrol & bevoegdheden</th><th>Status</th><th>Wachtwoord</th><th>Beheer</th></tr></thead><tbody>${data.accounts
+          .map((x) => {
+            const ownerAccount = (data.settings?.roles?.owner || []).includes(
+              x.discordId,
+            );
+            const profile = ownerAccount
+              ? "Eigenaar (Discord)"
+              : accountProfileLabels[x.accessProfile] ||
+                accountProfileLabels.discord;
+            const grants = ownerAccount
+              ? ["Eigenaar · volledige rechten"]
+              : accountPermissionEntries
+                  .filter(([key]) => x.accessPermissions?.[key])
+                  .map(([, label]) => label);
+            return `<tr><td>${e(x.username)}</td><td class="callsign">${e(x.discordId)}</td><td class="access-cell"><strong>${e(profile)}</strong><div class="permission-chips">${grants.length ? grants.map((label) => `<span class="permission-chip">${e(label)}</span>`).join("") : `<span class="permission-muted">Discord bepaalt toegang</span>`}</div></td><td><span class="tag ${x.enabled ? "active" : "inactive"}">${x.enabled ? "Toegang actief" : "Uitgeschakeld"}</span></td><td>${x.mustChange ? "Tijdelijk wachtwoord" : "Persoonlijk ingesteld"}</td><td>${tiny("edit-account", "Account en rechten beheren", "settings", x.id)}${x.id !== me.user.id ? tiny("delete-account", "Account verwijderen", "trash", x.id, "danger") : ""}</td></tr>`;
+          })
+          .join("")}</tbody></table></div>`,
       )
     );
   }
@@ -826,15 +867,61 @@ export function createPortal({
     );
   }
   function accountForm(row) {
+    const ownerAccount =
+      row && (data.settings?.roles?.owner || []).includes(row.discordId);
+    const profile = row?.accessProfile || "discord";
+    const profileOptions = Object.entries(accountProfileLabels).map(
+      ([id, label]) => ({ id, label }),
+    );
+    const selectedScopes = row?.accessPermissions || {};
+    const accessEditor = ownerAccount
+      ? `<input type="hidden" name="accessProfile" value="discord"><div class="security-note access-owner-note">${icon("shield")} Dit account is eigenaar via Discord. De volledige eigenaarsrechten blijven beschermd.</div>`
+      : `<div class="access-editor">${select("Portaalrol", "accessProfile", profileOptions, profile)}<fieldset class="access-permissions" ${profile === "discord" ? "hidden" : ""}><legend>Bevoegdheden</legend><div class="access-scope-grid">${accountPermissionEntries.map(([key, label]) => `<label class="access-scope"><input type="checkbox" name="scope_${key}" ${selectedScopes[key] ? "checked" : ""}><span>${e(label)}</span></label>`).join("")}</div><p>Beheer van accounts en systeeminstellingen blijft uitsluitend beschikbaar via de eigenaarrol in Discord. Ambulancetoegang werkt alleen wanneer die werkplek is ingeschakeld.</p></fieldset></div>`;
     modal(
       row ? "Account beheren" : "Overheidsaccount aanmaken",
-      `${row ? `<div class="security-note">${icon("lock")} ${e(row.username)} · ${e(row.discordId)}</div><br>` : field("Gebruikersnaam", "username", "", "text", 'required maxlength="80"') + field("Discord-gebruikers-ID", "discordId", "", "text", 'required pattern="[0-9]{17,20}"')}${field(row ? "Nieuw tijdelijk wachtwoord (leeg laten om te behouden)" : "Tijdelijk wachtwoord", "password", "", "password", `${row ? "" : "required"} minlength="12" maxlength="128" autocomplete="new-password"`)}${row ? `<label class="field checkbox"><input type="checkbox" name="enabled" ${row.enabled ? "checked" : ""}> Account is ingeschakeld</label>` : ""}<div class="security-note">${icon("shield")} De gebruiker moet het tijdelijke wachtwoord na aanmelden wijzigen. De gekoppelde Discord-identiteit én toegangsrol worden gecontroleerd.</div>`,
-      (form) =>
-        api("/api/accounts" + (row ? "/" + row.id : ""), {
+      `${row ? `<div class="security-note">${icon("lock")} ${e(row.username)} · ${e(row.discordId)}</div><br>` : `<div class="form-grid">${field("Gebruikersnaam", "username", "", "text", 'required maxlength="80"')}${field("Discord-gebruikers-ID", "discordId", "", "text", 'required pattern="[0-9]{17,20}"')}</div>`}${accessEditor}${field(row ? "Nieuw tijdelijk wachtwoord (leeg laten om te behouden)" : "Tijdelijk wachtwoord", "password", "", "password", `${row ? "" : "required"} minlength="12" maxlength="128" autocomplete="new-password"`)}${row ? `<label class="field checkbox"><input type="checkbox" name="enabled" ${row.enabled ? "checked" : ""}> Account is ingeschakeld</label>` : ""}<div class="security-note">${icon("shield")} De gebruiker meldt zich aan met de gekoppelde Discord-identiteit. Wijzigingen in rechten worden direct toegepast.</div>`,
+      (form) => {
+        const formValues = Object.fromEntries(form);
+        const accessPermissions = Object.fromEntries(
+          accountPermissionEntries.map(([key]) => [
+            key,
+            form.has("scope_" + key),
+          ]),
+        );
+        for (const [key] of accountPermissionEntries)
+          delete formValues["scope_" + key];
+        return api("/api/accounts" + (row ? "/" + row.id : ""), {
           method: row ? "PUT" : "POST",
-          body: { ...Object.fromEntries(form), enabled: form.has("enabled") },
-        }),
+          body: {
+            ...formValues,
+            accessPermissions,
+            enabled: form.has("enabled"),
+          },
+        });
+      },
     );
+    if (!ownerAccount) {
+      const roleSelect = $("modal-body").querySelector(
+        'select[name="accessProfile"]',
+      );
+      const permissionSet = $("modal-body").querySelector(
+        ".access-permissions",
+      );
+      $("modal-body").onchange = (event) => {
+        if (event.target === roleSelect) {
+          const selected = accountProfileScopes[roleSelect.value] || [];
+          for (const [key] of accountPermissionEntries) {
+            const checkbox = $("modal-body").querySelector(
+              `[name="scope_${key}"]`,
+            );
+            checkbox.checked = selected.includes(key);
+          }
+          permissionSet.hidden = roleSelect.value === "discord";
+        } else if (event.target.matches(".access-scope input")) {
+          roleSelect.value = "custom";
+        }
+      };
+    }
   }
   async function remove(url, message) {
     if (!confirm(message)) return;
