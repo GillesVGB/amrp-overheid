@@ -23,6 +23,7 @@ import {
 } from "./database.mjs";
 const API = "https://discord.com/api/v10";
 import { completeDiscordLogin } from "./discord-login.mjs";
+import { createPasswordVerifier } from "./password-auth.mjs";
 export function authentication({
   db,
   config,
@@ -41,6 +42,20 @@ export function authentication({
   const verifiedMembers = new Map();
   const pendingMembers = new Map();
   const refreshedTokens = new Map();
+  const passwordMember = createPasswordVerifier({
+    config,
+    request,
+    clock,
+    discord,
+  });
+  function accountGrants(user, roles) {
+    const settings = getSettings(db);
+    return applyAccountAccess(
+      permissions(roles, settings, config.roles.owner || []),
+      getAccountAccess(db, user.id),
+      settings,
+    );
+  }
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const clear = (res) => {
     res.clearCookie(sessionName, cookies);
@@ -248,16 +263,21 @@ export function authentication({
         .get(session.user_id);
       requireValue(user?.enabled, 401, "Dit account is uitgeschakeld.");
       let verified;
+      const credentials = decrypt(session.tokens, config.key);
       try {
-        verified = await member(
-          decrypt(session.tokens, config.key),
-          (tokens) => {
-            db.prepare("UPDATE sessions SET tokens=? WHERE hash=?").run(
-              encrypt(tokens, config.key),
-              hash,
-            );
-          },
-        );
+        verified =
+          credentials.method === "password"
+            ? await passwordMember(
+                user,
+                credentials,
+                Object.values(accountGrants(user, [])).some(Boolean),
+              )
+            : await member(credentials, (tokens) => {
+                db.prepare("UPDATE sessions SET tokens=? WHERE hash=?").run(
+                  encrypt(tokens, config.key),
+                  hash,
+                );
+              });
       } catch (error) {
         if ([401, 403].includes(error.status))
           db.prepare("DELETE FROM sessions WHERE hash=?").run(hash);
@@ -291,6 +311,10 @@ export function authentication({
         roles: verified.roles,
         identity: verified.identity,
         hash,
+        method:
+          credentials.method === "password" || config.demo
+            ? "password"
+            : "discord",
       };
       next();
     } catch (error) {
@@ -437,20 +461,19 @@ export function authentication({
         audit(db, user, "sessie.aangemeld", user.id);
         return res.json({ ok: true });
       }
+      const checked = await passwordMember(
+        user,
+        {},
+        Object.values(accountGrants(user, [])).some(Boolean),
+      );
       requireValue(
-        config.discordReady,
-        503,
-        "Discord-login is nog niet geconfigureerd door de beheerder.",
+        Object.values(accountGrants(user, checked.roles)).some(Boolean),
+        403,
+        "Dit account heeft geen toegangsrechten. De eigenaar kan die instellen bij Accounts.",
       );
-      const raw = token();
-      db.prepare("INSERT INTO auth_flows VALUES(?,?,?,?)").run(
-        digest(raw),
-        user.id,
-        "preauth",
-        clock() + 5 * 60e3,
-      );
-      res.cookie(flowName, raw, { ...cookies, maxAge: 5 * 60e3 });
-      res.json({ oauthUrl: "/auth/discord/start" });
+      createSession(res, user, checked.tokens);
+      audit(db, user, "sessie.wachtwoord_aangemeld", user.id);
+      res.json({ ok: true });
     });
     app.post("/auth/register", sameOrigin, (req, res) => {
       limit("register-ip:" + req.ip, 8);
@@ -691,7 +714,7 @@ export function authentication({
           req.auth.identity.global_name || req.auth.identity.username,
         settings: { name: getSettings(db).name },
         demo: Boolean(config.demo),
-        authMode: config.demo ? "password" : "discord",
+        authMode: req.auth.method,
       }),
     );
     app.post("/auth/logout", sameOrigin, (req, res) => {

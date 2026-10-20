@@ -67,6 +67,7 @@ test("Aanmeldscherm gebruikt Discord, toont Amsterdam wifi en sluit met een veil
       return Response.json({ discordConfigured: true, demo: false });
     if (url === "/api/me")
       return Response.json({ error: "Aanmelden vereist" }, { status: 401 });
+    if (url === "/auth/login") return Response.json({ ok: true });
     return Response.json({
       oauthUrl: "https://discord.com/oauth2/authorize?state=test",
     });
@@ -78,8 +79,8 @@ test("Aanmeldscherm gebruikt Discord, toont Amsterdam wifi en sluit met een veil
   ui.window.close = () => closed++;
   await import("../public/js/login.js?ui-test");
   const get = (id) => ui.document.getElementById(id);
-  assert.equal(get("login-form").querySelectorAll("input").length, 0);
-  assert.equal(get("demo-login").hidden, true);
+  assert.equal(get("login-form").querySelectorAll("input").length, 2);
+  assert.equal(get("password").type, "password");
   assert.equal(get("discord-signin").disabled, false);
   ui.click(get("login-network"));
   assert.equal(get("login-wifi-menu").hidden, false);
@@ -93,15 +94,23 @@ test("Aanmeldscherm gebruikt Discord, toont Amsterdam wifi en sluit met een veil
   assert.equal(get("login").hidden, true);
   ui.click(get("login-return"));
   assert.equal(get("login").hidden, false);
-  get("login-form").dispatchEvent(
-    new ui.window.Event("submit", { bubbles: true, cancelable: true }),
-  );
+  ui.click(get("discord-signin"));
   await new Promise((resolve) => setImmediate(resolve));
   const login = calls.find((x) => x.url === "/auth/discord/login");
   assert.ok(login);
   assert.equal(login.options.method, "POST");
   assert.ok(!login.options.body.includes("password"));
   assert.match(ui.assigned[0], /^https:\/\/discord.com\//);
+  get("username").value = "medewerker";
+  get("password").value = "UI-TestPassword-2026!";
+  get("login-form").dispatchEvent(
+    new ui.window.Event("submit", { bubbles: true, cancelable: true }),
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  const passwordLogin = calls.find((x) => x.url === "/auth/login");
+  assert.equal(JSON.parse(passwordLogin.options.body).username, "medewerker");
+  assert.equal(ui.assigned.at(-1), "/");
+  assert.equal(get("password").value, "");
   assert.equal(ui.document.querySelector(".login-meos"), null);
 });
 

@@ -32,40 +32,44 @@
         <h1 id="login-name">Welkom</h1>
         <p class="login-subtitle">Meld je aan op je overheidswerkplek.</p>
         <form id="login-form">
-          <button
-            id="discord-signin"
-            type="submit"
-            class="login-discord-button"
-          >
-            <span data-icon="discord"></span>Inloggen met Discord<span
-              data-icon="arrow"
-            ></span>
-          </button>
-        </form>
-        <p class="login-help">
-          Gebruik je Discord-account. Je dienstrol of de toegang die de eigenaar
-          heeft ingesteld bepaalt wat je kunt openen.
-        </p>
-        <form id="demo-login" hidden>
-          <label class="sr-only" for="demo-username">Demogebruiker</label
-          ><input
-            id="demo-username"
+          <label class="sr-only" for="username">Gebruikersnaam</label>
+          <input
+            id="username"
             name="username"
-            placeholder="Demogebruiker"
             autocomplete="username"
+            placeholder="Gebruikersnaam"
             required
-          /><label class="sr-only" for="demo-password">Demowachtwoord</label
-          ><input
-            id="demo-password"
-            name="password"
-            type="password"
-            placeholder="Demowachtwoord"
-            autocomplete="current-password"
-            required
-          /><button type="submit" class="login-discord-button">
-            Demowerkplek openen
-          </button>
+            maxlength="80"
+          />
+          <label class="sr-only" for="password">Wachtwoord</label>
+          <div class="password-input">
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Wachtwoord"
+              required
+              maxlength="128"
+            /><button
+              id="password-signin"
+              type="submit"
+              aria-label="Aanmelden"
+              title="Aanmelden"
+              data-icon="arrow"
+            ></button>
+          </div>
         </form>
+        <div class="login-method-divider"><span>of</span></div>
+        <button id="discord-signin" type="button" class="login-discord-button">
+          <span data-icon="discord"></span>Inloggen met Discord<span
+            data-icon="arrow"
+          ></span>
+        </button>
+        <p class="login-help">
+          Je accountrechten bepalen wat je kunt openen. Je kunt ook je
+          gekoppelde Discord-account gebruiken.
+        </p>
         <p id="login-error" class="login-error" role="alert"></p>
         <p id="setup-notice" class="setup-notice" hidden>
           Discord-login moet nog door de beheerder worden ingesteld.
@@ -75,7 +79,7 @@
         <div class="login-accounts">
           <button class="login-profile selected" id="switch-account">
             <span data-icon="user"></span
-            ><span id="default-account-name">Discord-account</span>
+            ><span id="default-account-name">Andere gebruiker</span>
           </button>
         </div>
         <div class="login-system">

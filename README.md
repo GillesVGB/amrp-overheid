@@ -4,7 +4,8 @@ Een gedeelde digitale werkplek voor de Amsterdam Roleplay-overheidsdiensten. De 
 
 ## Wat erin zit
 
-- Rechtstreeks inloggen met Discord, zonder portaalwachtwoord. Een toegestane Discord-dienstrol maakt het account automatisch aan. De eigenaar kan daarnaast via Accounts een Discord-ID toevoegen en beperkte portaalrechten geven. Uitgeschakelde accounts blijven geblokkeerd. Het Discord-account moet lid zijn van de ingestelde overheidsserver.
+- Inloggen met gebruikersnaam en wachtwoord, met daaronder een aparte Discord-knop. De eigenaar maakt bij Accounts een gebruikersnaam, Discord-ID en wachtwoord aan en kiest de rechten. Het wachtwoord werkt direct; een verplichte eerste wijziging geldt alleen wanneer `mustChange` expliciet is ingesteld.
+- Bij wachtwoordaanmelding worden ingestelde accountrechten direct toegepast; dienstrollen kunnen automatisch door de bot worden gecontroleerd. De browser hoeft daarvoor niet naar Discord. Directe Discord-aanmelding blijft beschikbaar en maakt bij een toegestane dienstrol automatisch een account aan. Uitgeschakelde accounts blijven bij beide methoden geblokkeerd.
 - Meerdere appvensters naast elkaar, met behoud van open formulieren, taakbalk, minimaliseren, maximaliseren, slepen en vergroten. Met + in de titelbalk open je een extra venster van dezelfde app. MEOS opent als snelkoppeling naar de bestaande MEOS-website.
 - Het Windows-aanmeldscherm heeft een wifi-menu met Amsterdam wifi en een afsluitoptie. Browsers die het sluiten van een tabblad blokkeren tonen een afsluitscherm.
 - Politieoverzicht, personeel, rangreeksen, roepnummers, standplaatsen, archief, accounts, instellingen en activiteitenlog.

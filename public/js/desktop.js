@@ -807,10 +807,7 @@ fillIcons();
 try {
   me = await api("/api/me");
   try {
-    localStorage.setItem(
-      "amrp-last-username",
-      me.discordName || me.user.username,
-    );
+    localStorage.setItem("amrp-last-username", me.user.username);
   } catch {
     /* Optional display preference. */
   }

@@ -932,8 +932,7 @@ export function createPortal({
     );
   }
   function accountForm(row) {
-    const ownerAccount =
-      row && (data.settings?.roles?.owner || []).includes(row.discordId);
+    const ownerAccount = row?.id === me.user.id && me.permissions.owner;
     const profile = row?.accessProfile || (row ? "discord" : "police-agent");
     const profileOptions = Object.entries(accountProfileLabels).map(
       ([id, label]) => ({ id, label }),
@@ -948,7 +947,7 @@ export function createPortal({
       : `<div class="access-editor">${select("Portaalrol", "accessProfile", profileOptions, profile)}<fieldset class="access-permissions" ${profile === "discord" ? "hidden" : ""}><legend>Bevoegdheden</legend><div class="access-scope-grid">${accountPermissionEntries.map(([key, label]) => `<label class="access-scope"><input type="checkbox" name="scope_${key}" ${selectedScopes[key] ? "checked" : ""}><span>${e(label)}</span></label>`).join("")}</div><p>Beheer van accounts en systeeminstellingen blijft uitsluitend beschikbaar via de eigenaarrol in Discord. Ambulancetoegang werkt alleen wanneer die werkplek is ingeschakeld.</p></fieldset></div>`;
     modal(
       row ? "Account beheren" : "Overheidsaccount aanmaken",
-      `${row ? `<div class="security-note">${icon("lock")} ${e(row.username)} · ${e(row.discordId)}</div><br>` : `<div class="form-grid">${field("Accountnaam (optioneel)", "username", "", "text", 'maxlength="80"')}${field("Discord-gebruikers-ID", "discordId", "", "text", 'required pattern="[0-9]{17,20}"')}</div>`}${accessEditor}${row ? `<label class="field checkbox"><input type="checkbox" name="enabled" ${row.enabled ? "checked" : ""}> Account is ingeschakeld</label>` : ""}<div class="security-note">${icon("discord")} De gebruiker logt rechtstreeks in met dit Discord-account. Er is geen wachtwoord nodig. Kies welke onderdelen toegankelijk zijn; systeem- en accountbeheer blijven beschermd door de eigenaarrol.</div>`,
+      `<div class="form-grid">${field("Gebruikersnaam", "username", row?.username || "", "text", 'required maxlength="80" autocomplete="off"')}${field("Discord-gebruikers-ID", "discordId", row?.discordId || "", "text", 'required pattern="[0-9]{17,20}"')}</div>${field(row ? "Nieuw wachtwoord (leeg laten om te behouden)" : "Wachtwoord (minimaal 12 tekens)", "password", "", "password", `${row ? "" : "required"} minlength="12" maxlength="128" autocomplete="new-password"`)}${accessEditor}${row ? `<label class="field checkbox"><input type="checkbox" name="enabled" ${row.enabled ? "checked" : ""}> Account is ingeschakeld</label>` : ""}<div class="security-note">${icon("lock")} De gebruiker kan direct inloggen met deze gebruikersnaam en dit wachtwoord, of met het gekoppelde Discord-account. De ingestelde accountrechten blijven gelden.</div>`,
       (form) => {
         const formValues = Object.fromEntries(form);
         const accessPermissions = Object.fromEntries(

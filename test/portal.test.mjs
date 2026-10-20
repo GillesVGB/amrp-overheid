@@ -530,6 +530,7 @@ test("Volledige werkplek: login, rollen, opslag, archief en accountbeheer", asyn
           username: "nieuw",
           discordId: "990000000000000009",
           password: newPassword,
+          mustChange: true,
         },
       });
       assert.equal(created.status, 201);
@@ -682,11 +683,12 @@ test("Volledige werkplek: login, rollen, opslag, archief en accountbeheer", asyn
       config.clientId = "1509476480638386206";
       config.clientSecret = "test-only";
       const oauth = client();
-      const result = await oauth.login("admin");
-      assert.equal(result.data.oauthUrl, "/auth/discord/start");
-      const start = await oauth.request("/auth/discord/start");
-      assert.equal(start.status, 302);
-      const target = new URL(start.headers.get("location"));
+      const result = await oauth.request("/auth/discord/login", {
+        method: "POST",
+        body: {},
+      });
+      assert.equal(result.status, 200);
+      const target = new URL(result.data.oauthUrl);
       assert.equal(target.origin, "https://discord.com");
       assert.equal(
         target.searchParams.get("scope"),
@@ -850,15 +852,12 @@ test("Discord-controle herstelt van rate limits en hergebruikt recente rollen", 
     return { status: response.status, data, headers: response.headers };
   }
 
-  const login = await send("/auth/login", {
+  const login = await send("/auth/discord/login", {
     method: "POST",
-    body: { username: "oauth-test", password },
+    body: {},
   });
   assert.equal(login.status, 200);
-  assert.equal(login.data.oauthUrl, "/auth/discord/start");
-  const start = await send("/auth/discord/start");
-  assert.equal(start.status, 302);
-  const state = new URL(start.headers.get("location")).searchParams.get(
+  const state = new URL(login.data.oauthUrl).searchParams.get(
     "state",
   );
   const callback = await send(

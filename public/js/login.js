@@ -8,7 +8,10 @@ try {
   if (["bloom", "classic", "midnight", "amsterdam"].includes(wallpaper))
     document.querySelector(".wallpaper").dataset.wallpaper = wallpaper;
   const name = localStorage.getItem("amrp-last-username");
-  if (name) $("default-account-name").textContent = name;
+  if (name) {
+    $("default-account-name").textContent = name;
+    $("username").value = name;
+  }
 } catch {
   /* Use default appearance when browser storage is unavailable. */
 }
@@ -36,20 +39,25 @@ async function signin(switchAccount = false) {
     $("discord-signin").disabled = false;
   }
 }
-$("login-form").addEventListener("submit", (event) => {
-  event.preventDefault();
-  signin();
+$("discord-signin").addEventListener("click", () => signin());
+$("switch-account").addEventListener("click", () => {
+  $("username").value = "";
+  $("password").value = "";
+  $("username").focus();
 });
-$("switch-account").addEventListener("click", () => signin(true));
-$("demo-login").addEventListener("submit", async (event) => {
+$("login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const button = event.submitter;
+  const button = $("password-signin");
   button.disabled = true;
   try {
     const result = await api("/auth/login", {
       method: "POST",
-      body: Object.fromEntries(new FormData(event.currentTarget)),
+      body: { username: $("username").value, password: $("password").value },
     });
+    try {
+      localStorage.setItem("amrp-last-username", $("username").value.trim());
+    } catch {}
+    $("password").value = "";
     if (result.oauthUrl) location.assign(result.oauthUrl);
     else location.replace("/");
   } catch (error) {
@@ -129,14 +137,9 @@ try {
   const health = await api("/api/health");
   $("setup-notice").hidden = health.discordConfigured || health.demo;
   $("discord-signin").disabled = !health.discordConfigured || health.demo;
-  $("demo-login").hidden = !health.demo;
-  $("login-form").hidden = Boolean(health.demo);
   const me = await api("/api/me");
   try {
-    localStorage.setItem(
-      "amrp-last-username",
-      me.discordName || me.user.username,
-    );
+    localStorage.setItem("amrp-last-username", me.user.username);
   } catch {
     /* Optional local display preference. */
   }

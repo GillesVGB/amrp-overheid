@@ -702,16 +702,14 @@ export async function createApp(config, options = {}) {
             req.body.accessProfile,
             req.body.accessPermissions,
           )
-        : req.body.password
-          ? null
-          : normalizeAccountAccess("police-agent", { policeRead: true });
+        : normalizeAccountAccess("police-agent", { policeRead: true });
     transaction(db, () => {
       db.prepare("INSERT INTO users VALUES(?,?,?,?,1,?,?)").run(
         target,
         username,
         discordId,
         hash,
-        req.body.password ? 1 : 0,
+        req.body.mustChange === true ? 1 : 0,
         timestamp(),
       );
       if (access) setAccountAccess(db, target, access, req.auth.user.id);
@@ -737,6 +735,17 @@ export async function createApp(config, options = {}) {
     const hash = req.body.password
       ? await hashPassword(req.body.password)
       : null;
+    const username = Object.hasOwn(req.body, "username")
+      ? text(req.body.username, "Gebruikersnaam", 80).toLowerCase()
+      : before.username;
+    requireValue(
+      /^[\p{L}\p{N}._-]+$/u.test(username),
+      400,
+      "Gebruik alleen letters, cijfers, punten, streepjes en underscores.",
+    );
+    const discordId = Object.hasOwn(req.body, "discordId")
+      ? snowflake(req.body.discordId)
+      : before.discord_id;
     const accessSpecified = Object.hasOwn(req.body, "accessProfile");
     const beforeAccess = getAccountAccess(db, before.id);
     const access = accessSpecified
@@ -750,11 +759,13 @@ export async function createApp(config, options = {}) {
       JSON.stringify(access || null) !== JSON.stringify(beforeAccess || null);
     transaction(db, () => {
       db.prepare(
-        "UPDATE users SET enabled=?,password_hash=?,must_change=? WHERE id=?",
+        "UPDATE users SET enabled=?,password_hash=?,must_change=?,username=?,discord_id=? WHERE id=?",
       ).run(
         req.body.enabled === false ? 0 : 1,
         hash || before.password_hash,
-        hash ? 1 : before.must_change,
+        hash ? (req.body.mustChange === true ? 1 : 0) : before.must_change,
+        username,
+        discordId,
         before.id,
       );
       if (accessSpecified)
@@ -771,11 +782,15 @@ export async function createApp(config, options = {}) {
         before.id,
         {
           enabled: Boolean(before.enabled),
+          username: before.username,
+          discordId: before.discord_id,
           accessProfile: beforeAccess?.profile || "discord",
           accessPermissions: beforeAccess?.permissions || {},
         },
         {
           enabled: req.body.enabled !== false,
+          username,
+          discordId,
           accessProfile: access?.profile || "discord",
           accessPermissions: access?.permissions || {},
         },

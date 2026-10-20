@@ -192,3 +192,30 @@ body:has(#login) .login-discord-button:hover {
 .high-contrast .login-meos {
   border: 2px solid white;
 }
+
+.login-method-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 16px;
+  color: #dce8f9;
+  font-size: 12px;
+}
+.login-method-divider:before,
+.login-method-divider:after {
+  content: "";
+  height: 1px;
+  background: #ffffff30;
+  flex: 1;
+}
+body:has(#login) #login-form #username {
+  width: 100%;
+  margin-bottom: 9px;
+}
+body:has(#login) #password-signin {
+  width: 44px;
+}
+.login-center .login-help {
+  margin: 15px 0 0;
+}
+@media(max-height:640px){body:has(#login) .account-avatar{width:80px;height:80px;margin-bottom:12px}body:has(#login) .account-avatar .icon{width:48px;height:48px}body:has(#login) .login-center h1{font-size:26px;margin-bottom:10px}body:has(#login) .login-brand{display:none}.login-subtitle{margin-bottom:14px}.login-method-divider{margin:12px 0}.login-center .login-help{display:none}}
