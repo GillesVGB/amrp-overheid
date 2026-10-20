@@ -16,7 +16,9 @@ function createPool(image = null) {
     },
     queries,
     async connect() {
-      let pending, unlock;
+      let pending,
+        unlock,
+        pendingConstraintChecks = false;
       return {
         async query(sql, values = []) {
           queries.push(sql);
@@ -69,8 +71,18 @@ function createPool(image = null) {
           const save = sql.match(/^\/\* amrp:save (\w+) \*\//);
           if (save) {
             pending.rows[save[1]] = JSON.parse(values[0]);
+            if (pending.meta) pendingConstraintChecks = true;
             return { rows: [] };
           }
+          if (sql === "SET CONSTRAINTS ALL IMMEDIATE") {
+            pendingConstraintChecks = false;
+            return { rows: [] };
+          }
+          // Model PostgreSQL's deferred-trigger restriction during a migration.
+          if (pendingConstraintChecks && /ALTER TABLE/.test(sql))
+            throw new Error(
+              "cannot ALTER TABLE because it has pending trigger events",
+            );
           if (sql.startsWith('INSERT INTO "public"."amrp_portal_meta"')) {
             pending.meta = {
               revision: values[0],

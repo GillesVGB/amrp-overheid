@@ -452,7 +452,12 @@ export async function withPostgresPortalState(config, callback, { pool } = {}) {
       !saved || stableJson(saved.sqlite_schema) !== stableJson(after.schema);
     if (schemaChanged) await ensureSchema(client, after);
     const changedTables = await saveRows(client, after, before);
-    if (schemaChanged) await ensureConstraints(client, after);
+    if (schemaChanged) {
+      // Bulk writes defer foreign-key checks. PostgreSQL must finish those
+      // checks before ALTER TABLE can enforce the updated schema.
+      await client.query("SET CONSTRAINTS ALL IMMEDIATE");
+      await ensureConstraints(client, after);
+    }
     const nextRevision =
       revision +
       (!saved || applicationDigest(baseline) !== applicationDigest(after)
