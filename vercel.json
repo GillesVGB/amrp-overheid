@@ -1,0 +1,9 @@
+{
+  "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/auth/:path*", "destination": "/api/auth/:path*" }
+  ],
+  "crons": [
+    { "path": "/api/cron/discord-sync", "schedule": "0 4 * * *" }
+  ]
+}

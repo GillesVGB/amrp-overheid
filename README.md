@@ -28,28 +28,26 @@ npm run dev:demo
 
 Open daarna `http://127.0.0.1:4401`. De demo gebruikt verzonnen personeelsgegevens en is alleen bereikbaar via de eigen computer. De demoaccounts zijn `beheer`, `leiding` en `agent`; het demonstratiewachtwoord staat in de startmelding. Gebruik deze demoaccounts nooit in productie.
 
-## Deployen naar Netlify
+## Deployen naar Vercel
 
-De productie-app draait als Netlify Function. De bijbehorende instellingen staan in `netlify.toml`; Netlify serveert de bestanden uit `public/` en stuurt `/api/*` en `/auth/*` naar de Express-function. De app bewaart de SQLite-databasesnapshot in Netlify Database (PostgreSQL) en archiefbestanden in Netlify Blobs. Verzoeken worden voor de database één voor één verwerkt, zodat deze bestaande SQLite-app met de serverless omgeving kan werken. Dit is bedoeld voor een kleine roleplay-omgeving; bij veel gelijktijdig gebruik is een normale PostgreSQL-datalaag geschikter.
+De repository bevat Vercel Functions voor `/api/*` en `/auth/*`. Vercel serveert de websitebestanden uit `public/`. De app bewaart haar database blijvend in PostgreSQL en personeelsbestanden in een **private** Vercel Blob-store. Maak beide opslagdiensten aan en koppel ze aan hetzelfde Vercel-project voordat je de eerste productieaanmelding gebruikt.
 
-1. Koppel de GitHub-repository `GillesVGB/amrp-overheid` aan Netlify en deploy de branch `main`. De buildinstellingen komen uit `netlify.toml`.
-2. Open in Netlify **Data & Storage → Database** en maak de database voor dit project aan. De function gebruikt de automatisch gekoppelde database. Netlify Blobs wordt bij de eerste function-aanroep aangemaakt.
-3. Stel in Netlify **Project configuration → Environment variables** de productievariabelen in. Zet `APP_ORIGIN` op `https://overheid.amsterdamrp.nl`; genereer `TOKEN_ENCRYPTION_KEY` met `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`. Bewaar dezelfde encryptiesleutel permanent.
+1. Importeer `GillesVGB/amrp-overheid` in Vercel en deploy de branch `main`. `vercel.json` bevat de statische map, routes en de dagelijkse Discord-synchronisatie.
+2. Open het Vercel-project → **Storage**. Maak via de Marketplace een PostgreSQL-database aan, bijvoorbeeld Neon, en koppel deze aan het project. De integratie moet `POSTGRES_URL` of `DATABASE_URL` toevoegen. Maak ook een Vercel Blob-store met toegang **Private** en koppel die aan het project; Vercel voegt dan `BLOB_READ_WRITE_TOKEN` toe. De site bewaart databasegegevens in PostgreSQL en gevoelige uploads alleen in private Blob-opslag.
+3. Voeg onder **Settings → Environment Variables** de productievariabelen toe: `APP_ORIGIN` (`https://amrp-overheid.vercel.app`, of je eigen HTTPS-domein), `TOKEN_ENCRYPTION_KEY`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `ROLE_OWNER`, `ROLE_ADMIN`, `ROLE_POLICE` en `ROLE_COMMAND`. Genereer eenmalig een encryptiesleutel met `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"` en bewaar die permanent. De server-ID is `1402056739985162394`; de rollen zijn `ROLE_OWNER=1519394039361835239,1519394037423931392`, `ROLE_ADMIN=1519394041165516911`, `ROLE_POLICE=1519394082277953679` en `ROLE_COMMAND=1519394051760066660`. Vul `ROLE_AMBULANCE` alleen in als er een aparte ambulancerol is.
+4. Stel ook `CRON_SECRET` in op een willekeurige geheime waarde. Vercel gebruikt deze om de geplande Discord-synchronisatie af te schermen. De meegeleverde planning draait dagelijks om 04:00 UTC. Vercel Hobby staat geen planning om de vijf minuten toe; daarvoor is een plan nodig dat frequentere Cron Jobs ondersteunt.
+5. Voeg in Discord Developer Portal → OAuth2 de callback-URL `https://amrp-overheid.vercel.app/auth/discord/callback` toe (vervang het domein als je een eigen domein gebruikt). De bot moet lid zijn van de server en leden kunnen lezen; geef de bot geen beheerdersrechten.
+6. Stel tijdelijk `INITIAL_SETUP_KEY` in met een willekeurige geheime waarde van minstens 32 tekens en deploy opnieuw. Maak één eerste beheeraccount via `POST https://amrp-overheid.vercel.app/api/first-account`, met JSON-velden `username`, `discordId` en `password` en de header `x-initial-setup-key` gelijk aan de tijdelijke sleutel. Het Discord-ID is `960090714950225970`; kies een tijdelijk wachtwoord van minstens 12 tekens. Verwijder `INITIAL_SETUP_KEY` daarna en deploy opnieuw. De eerste aanmelding vraagt om een nieuw wachtwoord.
+7. Controleer daarna de Discord-login, rolcontrole, databasepersistentie, private archiefuploads en geplande synchronisatie in de Vercel Logs.
 
-   Voeg ook `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN` en `DISCORD_GUILD_ID` toe. De server-ID is `1402056739985162394`. De rollen kunnen in Netlify worden ingesteld als `ROLE_OWNER=1519394039361835239,1519394037423931392`, `ROLE_ADMIN=1519394041165516911`, `ROLE_POLICE=1519394082277953679` en `ROLE_COMMAND=1519394051760066660`. Vul `ROLE_AMBULANCE` in als er een aparte ambulancerol is en schakel de ambulancewerkplek in bij de systeeminstellingen om ambulanceleden te laten aanmelden.
-
-4. Voeg in de Discord Developer Portal bij OAuth2 deze exacte redirect-URL toe: `https://overheid.amsterdamrp.nl/auth/discord/callback`. De bot moet lid zijn van de server en leden kunnen lezen. Geef de bot geen beheerdersrechten.
-5. Voeg tijdelijk de geheime variabele `NETLIFY_BOOTSTRAP_KEY` toe met een zelf gegenereerde willekeurige waarde van minstens 32 tekens. Deploy opnieuw. Maak daarna precies één eerste beheeraccount via `POST https://overheid.amsterdamrp.nl/api/first-account` met JSON-velden `username`, `discordId` en `password`, en met de header `x-initial-setup-key` gelijk aan die tijdelijke sleutel. Het Discord-ID van het beheerdersaccount is `960090714950225970`; kies een tijdelijk wachtwoord van minstens 12 tekens. Verwijder `NETLIFY_BOOTSTRAP_KEY` daarna uit Netlify en deploy opnieuw. De eerste aanmelding vraagt om een nieuw wachtwoord.
-6. Koppel in Netlify het domein `overheid.amsterdamrp.nl` en stel de DNS-records in die Netlify voor het domein toont. Controleer daarna de OAuth-login, Discord-rollen, archiefuploads en scheduled function `discord-sync`.
-
-Bewaar OAuth-secrets, de bottoken, encryptiesleutel en bootstrap-sleutel alleen in Netlify Environment Variables. Zet ze nooit in Git, screenshots of berichten. De scheduled Discord-synchronisatie draait elke vijf minuten. Verzoeken en bestanden blijven beschikbaar bij nieuwe deploys.
+Bewaar OAuth-secrets, bottoken, database-URL, Blob-token, encryptiesleutel en tijdelijke instelsleutel uitsluitend in Vercel Environment Variables. Commit ze nooit naar Git en deel ze niet in screenshots of berichten. De PostgreSQL-database en Blob-store blijven behouden wanneer je opnieuw deployt.
 
 ## Handige commando's
 
 ```sh
 npm run check       # controleert JavaScript-syntaxis
 npm test            # integratie- en beveiligingstests
-npm run build       # controle voor de Netlify-build
+npm run build       # controle voor de productiebuild
 npm start           # lokale server met waarden uit .env
 ```
 
