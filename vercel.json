@@ -1,5 +1,15 @@
 {
   "outputDirectory": "public",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "missing": [
+        { "type": "host", "value": "overheid-amrp.vercel.app" }
+      ],
+      "destination": "https://overheid-amrp.vercel.app/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/auth/:path*", "destination": "/api/auth/:path*" }
   ],
