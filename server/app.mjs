@@ -898,6 +898,8 @@ export async function createApp(config, options = {}) {
         : error.status || (error.type === "entity.too.large" ? 413 : 500);
     if (status >= 500 && !error.status)
       console.error("Verzoek mislukt:", error.code || error.name);
+    if (status === 429 && Number.isFinite(error.retryAfter))
+      res.set("Retry-After", String(error.retryAfter));
     res.status(status).json({
       error:
         error instanceof multer.MulterError

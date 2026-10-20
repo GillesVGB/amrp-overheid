@@ -54,11 +54,15 @@ export function authentication({
         now + window,
       );
     else {
-      requireValue(
-        row.count < max,
-        429,
-        "Te veel pogingen. Probeer het over 15 minuten opnieuw.",
-      );
+      if (row.count >= max) {
+        const seconds = Math.max(1, Math.ceil((row.expires_at - now) / 1000));
+        const error = new HttpError(
+          429,
+          `Te veel mislukte pogingen. Probeer het over ${seconds} seconden opnieuw.`,
+        );
+        error.retryAfter = seconds;
+        throw error;
+      }
       db.prepare("UPDATE rate_limits SET count=count+1 WHERE key=?").run(key);
     }
   }
@@ -296,13 +300,13 @@ export function authentication({
       }),
     );
     app.post("/auth/login", sameOrigin, async (req, res) => {
-      limit("login-ip:" + req.ip, 20);
+      limit("login-requests-v2:" + req.ip, 120, 60000);
       const username = text(
         req.body.username,
         "Gebruikersnaam",
         80,
       ).toLowerCase();
-      limit("login-user:" + username, 10);
+      const failureKey = "login-failures-v2:" + req.ip + ":" + username;
       const user = db
         .prepare("SELECT * FROM users WHERE username=?")
         .get(username);
@@ -310,10 +314,15 @@ export function authentication({
         req.body.password,
         user?.password_hash,
       );
-      requireValue(
-        user?.enabled && valid,
-        401,
-        "Gebruikersnaam of wachtwoord is onjuist.",
+      if (!user?.enabled || !valid) {
+        limit(failureKey, 10, 60000);
+        throw new HttpError(401, "Gebruikersnaam of wachtwoord is onjuist.");
+      }
+      // A valid password must not be locked out by earlier OAuth retries.
+      db.prepare("DELETE FROM rate_limits WHERE key IN (?,?,?)").run(
+        failureKey,
+        "login-user:" + username,
+        "login-ip:" + req.ip,
       );
       // Development identities only exist in the separately bound loopback demo server.
       if (discord && config.demo) {
