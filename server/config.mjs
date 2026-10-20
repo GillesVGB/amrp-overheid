@@ -5,13 +5,21 @@ import defaults from "./discord-config.json" with { type: "json" };
 
 export function configFromEnv(env = process.env) {
   const production = env.NODE_ENV === "production";
-  const origin = env.APP_ORIGIN || "http://127.0.0.1:4400";
-  const parsed = new URL(origin);
+  const rawOrigin = String(env.APP_ORIGIN || "http://127.0.0.1:4400").trim();
+  let parsed;
+  try {
+    parsed = new URL(rawOrigin);
+  } catch {
+    throw Error("APP_ORIGIN moet één origin zonder pad zijn.");
+  }
   if (
-    parsed.origin !== origin ||
-    !["http:", "https:"].includes(parsed.protocol)
+    !["http:", "https:"].includes(parsed.protocol) ||
+    parsed.pathname !== "/" ||
+    parsed.search ||
+    parsed.hash
   )
     throw Error("APP_ORIGIN moet één origin zonder pad zijn.");
+  const origin = parsed.origin;
   if (production && parsed.protocol !== "https:")
     throw Error("Productie vereist een HTTPS APP_ORIGIN.");
   const dataDir = path.resolve(env.DATA_DIR || "data");
