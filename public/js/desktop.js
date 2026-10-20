@@ -3,7 +3,14 @@ import { createPortal, escapeHtml as e } from "./politie.js";
 import { createApi } from "./api.js";
 import { createAmbulance } from "./ambulance.js";
 import { createWorkspace } from "./workspace.js";
+import { createWindows } from "./windows.js";
 const $ = (id) => document.getElementById(id);
+const embedded =
+  parent !== window &&
+  new URLSearchParams(location.search).get("window") === "1";
+let windowManager = null,
+  embeddedVisible = true;
+if (embedded) document.body.classList.add("app-window-embedded");
 let me = null,
   portal = null,
   workspace = null,
@@ -36,6 +43,11 @@ const wallpaperOptions = [
 function setWallpaper(value) {
   if (!wallpaperOptions.some((option) => option.id === value)) value = "bloom";
   currentWallpaper = value;
+  if (embedded)
+    parent.postMessage(
+      { type: "amrp-wallpaper", wallpaper: value },
+      location.origin,
+    );
   document.querySelectorAll(".wallpaper").forEach((element) => {
     element.dataset.wallpaper = value;
   });
@@ -167,6 +179,13 @@ function apps() {
       className: "requests",
       access: true,
     },
+    {
+      id: "meos",
+      label: "MEOS",
+      icon: "shield",
+      className: "police",
+      access: true,
+    },
   ].filter((x) => x.access);
 }
 function homeApp() {
@@ -192,7 +211,7 @@ function renderDesktop() {
   $("pinned-apps").innerHTML = items
     .map(
       (a) =>
-        `<button title="${a.label}" aria-label="${a.label}" data-app="${a.id}" ${currentApp === a.id ? 'class="active"' : ""}>${icon(a.icon)}</button>`,
+        `<button title="${a.label}${windowManager?.count(a.id) ? ` · ${windowManager.count(a.id)} venster(s)` : ""}" aria-label="${a.label}" data-app="${a.id}" class="${currentApp === a.id ? "active" : ""} ${windowManager?.count(a.id) ? "running" : ""}">${icon(a.icon)}</button>`,
     )
     .join("");
   $("environment-name").textContent = me.settings.name;
@@ -270,9 +289,22 @@ function toggleStart(force) {
   $("start-button").setAttribute("aria-expanded", String(show));
   if (show) startMenu($("desktop-search").value);
 }
-async function launch(appId) {
+async function launch(appId, navigate = null) {
   const a = apps().find((x) => x.id === appId);
   if (!a) return;
+  if (appId === "meos") {
+    window.open(
+      "https://meos.amsterdamrp.nl/",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    return;
+  }
+  if (windowManager) {
+    toggleStart(false);
+    windowManager.open(a, { navigate });
+    return;
+  }
   portal?.destroy?.();
   portal = null;
   workspace?.destroy();
@@ -347,6 +379,10 @@ async function launch(appId) {
 }
 function lockScreen(message) {
   me = null;
+  if (embedded) {
+    parent.postMessage({ type: "amrp-logout", message }, location.origin);
+    return;
+  }
   location.replace(
     "/login.html?melding=" + encodeURIComponent(message || "Meld opnieuw aan."),
   );
@@ -362,12 +398,18 @@ async function enter() {
     return;
   }
   await new Promise((resolve) =>
-    setTimeout(resolve, Math.max(0, 2000 - (Date.now() - start))),
+    setTimeout(
+      resolve,
+      embedded ? 0 : Math.max(0, 2000 - (Date.now() - start)),
+    ),
   );
   $("loading").hidden = true;
   $("desktop").hidden = false;
   renderDesktop();
-  await launch(homeApp());
+  if (embedded) {
+    const initial = new URLSearchParams(location.search).get("app");
+    await launch(apps().some((a) => a.id === initial) ? initial : homeApp());
+  }
 }
 function passwordDialog(required = false) {
   $("modal-title").textContent = required
@@ -420,12 +462,12 @@ document.addEventListener("click", async (ev) => {
     if (!result) return;
     try {
       if (result.action === "files") {
-        await launch("files");
-        await workspace.openDocument(result.id);
+        await launch("files", result);
+        if (!windowManager) await workspace.openDocument(result.id);
       } else if (result.action === "training") await launch("training");
       else {
-        await launch("police");
-        await portal?.navigateSearch(result);
+        await launch("police", result);
+        if (!windowManager) await portal?.navigateSearch(result);
       }
     } catch (error) {
       toast(error.message, true);
@@ -443,7 +485,12 @@ document.addEventListener("click", async (ev) => {
         .forEach((x) => x.classList.toggle("selected", x === target));
       if (ev.detail < 2 && !matchMedia("(pointer: coarse)").matches) return;
     }
-    await launch(target.dataset.app);
+    if (embedded)
+      parent.postMessage(
+        { type: "amrp-open", appId: target.dataset.app },
+        location.origin,
+      );
+    else await launch(target.dataset.app);
     return;
   }
   if (target.dataset.wallpaper) {
@@ -482,7 +529,10 @@ document.addEventListener("click", async (ev) => {
   if (action === "minimize") $("app-window").hidden = true;
   if (action === "maximize") $("app-window").classList.toggle("maximized");
   if (action === "close-modal") $("dialog").close();
-  if (action === "my-password") passwordDialog();
+  if (action === "my-password") {
+    if (me.authMode === "discord") await launch("personal");
+    else passwordDialog();
+  }
   if (action === "logout") {
     try {
       await api("/auth/logout", { method: "POST", body: {} });
@@ -644,8 +694,9 @@ async function checkSession() {
       JSON.stringify(updated.permissions) !== JSON.stringify(me.permissions)
     ) {
       me = updated;
+      windowManager?.prune(apps().map((a) => a.id));
       renderDesktop();
-      await launch(homeApp());
+      if (embedded) await launch(homeApp());
       toast("Je toegangsrechten zijn bijgewerkt.");
     }
   } catch (error) {
@@ -661,7 +712,15 @@ setInterval(checkSession, 60000);
 let sharedRevision = null,
   polling = false;
 async function checkChanges() {
-  if (!me || me.user.mustChange || document.hidden || polling) return;
+  if (
+    windowManager ||
+    !embeddedVisible ||
+    !me ||
+    me.user.mustChange ||
+    document.hidden ||
+    polling
+  )
+    return;
   polling = true;
   try {
     const { revision } = await api("/api/changes");
@@ -700,17 +759,84 @@ document.addEventListener("keydown", (event) => {
     !$("dialog").open
   ) {
     event.preventDefault();
+    if (embedded) {
+      parent.postMessage({ type: "amrp-search" }, location.origin);
+      return;
+    }
     toggleStart(true);
     $("start-search-input").focus();
   }
 });
 window.addEventListener("focus", checkSession);
+if (embedded) {
+  document.addEventListener("pointerdown", () =>
+    parent.postMessage({ type: "amrp-focus" }, location.origin),
+  );
+  window.addEventListener("message", async (event) => {
+    if (
+      event.source !== parent ||
+      event.origin !== location.origin ||
+      !event.data ||
+      typeof event.data !== "object"
+    )
+      return;
+    const message = event.data;
+    if (message.type === "amrp-visibility") {
+      embeddedVisible = message.visible === true;
+      if (embeddedVisible) checkChanges();
+    }
+    if (message.type === "amrp-close") {
+      portal?.destroy?.();
+      workspace?.destroy();
+      ambulance?.destroy?.();
+      parent.postMessage({ type: "amrp-closed" }, location.origin);
+    }
+    if (message.type === "amrp-navigate" && message.result) {
+      try {
+        if (workspace && message.result.action === "files")
+          await workspace.openDocument(message.result.id);
+        else if (portal) await portal.navigateSearch(message.result);
+      } catch (error) {
+        toast(error.message, true);
+      }
+    }
+  });
+}
+
 fillIcons();
 try {
   me = await api("/api/me");
+  try {
+    localStorage.setItem(
+      "amrp-last-username",
+      me.discordName || me.user.username,
+    );
+  } catch {
+    /* Optional display preference. */
+  }
   const preference = await api("/api/preferences");
   setWallpaper(preference.wallpaper);
+  if (!embedded)
+    windowManager = createWindows({
+      host: $("desktop"),
+      toast,
+      onFocus: (appId) => {
+        currentApp = appId;
+        renderDesktop();
+      },
+      onLogout: lockScreen,
+      onOpen: (appId) => launch(appId),
+      onWallpaper: (value) => {
+        if (wallpaperOptions.some((option) => option.id === value))
+          setWallpaper(value);
+      },
+      onSearch: () => {
+        toggleStart(true);
+        $("start-search-input").focus();
+      },
+    });
   await enter();
+  if (embedded) parent.postMessage({ type: "amrp-ready" }, location.origin);
   await checkChanges();
 } catch (error) {
   lockScreen(error.message);

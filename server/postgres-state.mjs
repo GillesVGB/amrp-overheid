@@ -12,6 +12,7 @@ const runtimeTables = new Set([
   "sessions",
   "auth_flows",
   "signup_flows",
+  "discord_login_flows",
   "rate_limits",
   "deleted_callsigns",
   "user_preferences",

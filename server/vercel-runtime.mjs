@@ -76,6 +76,9 @@ export async function withPortalState(callback) {
       const now = Date.now();
       requestDb.prepare("DELETE FROM auth_flows WHERE expires_at<?").run(now);
       requestDb.prepare("DELETE FROM signup_flows WHERE expires_at<?").run(now);
+      requestDb
+        .prepare("DELETE FROM discord_login_flows WHERE expires_at<?")
+        .run(now);
       requestDb.prepare("DELETE FROM sessions WHERE expires_at<?").run(now);
       requestDb.prepare("DELETE FROM rate_limits WHERE expires_at<?").run(now);
       return databaseContext.run(

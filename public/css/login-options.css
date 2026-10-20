@@ -1,0 +1,194 @@
+body:has(#login) .login-center {
+  width: min(360px, calc(100vw - 40px));
+}
+body:has(#login) .login-discord-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: #ffffffea;
+  color: #172e4a;
+  border: 1px solid #fff8;
+  border-radius: 4px;
+  font:
+    600 14px "Segoe UI",
+    sans-serif;
+  cursor: pointer;
+  box-shadow: 0 2px 8px #0002;
+  transition:
+    background 0.15s,
+    transform 0.15s;
+}
+body:has(#login) .login-discord-button:hover {
+  background: #fff;
+  transform: translateY(-1px);
+}
+.login-discord-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.login-discord-button .icon {
+  width: 21px;
+  height: 21px;
+}
+.login-meos {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 16px;
+  color: #fff;
+  font-size: 13px;
+  text-decoration: none;
+  padding: 8px 14px;
+  border: 1px solid #ffffff50;
+  border-radius: 4px;
+  background: #ffffff0a;
+}
+.login-meos:hover {
+  background: #ffffff20;
+  color: #fff;
+}
+.login-meos .icon {
+  width: 16px;
+  height: 16px;
+}
+.login-flyout {
+  position: absolute;
+  bottom: 76px;
+  right: 24px;
+  z-index: 20;
+  width: min(340px, calc(100vw - 40px));
+  padding: 18px;
+  border: 1px solid #ffffff30;
+  border-radius: 9px;
+  background: #202d42f5;
+  color: #f5f8ff;
+  box-shadow: 0 10px 35px #0005;
+  backdrop-filter: blur(24px);
+  font-family: "Segoe UI", sans-serif;
+}
+.login-flyout[hidden],
+.login-closed[hidden] {
+  display: none;
+}
+.login-flyout header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 15px;
+}
+.login-flyout header > .icon {
+  width: 19px;
+  height: 19px;
+}
+.login-flyout-close {
+  margin-left: auto;
+  background: transparent;
+  border: 0;
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+}
+.login-network-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 17px 12px;
+  background: #ffffff10;
+  border-radius: 5px;
+  border-left: 3px solid #7fc3ff;
+}
+.login-network-card > div {
+  flex: 1;
+}
+.login-network-card strong,
+.login-network-card small {
+  display: block;
+}
+.login-network-card small {
+  font-size: 12px;
+  color: #ced9ed;
+  margin-top: 5px;
+}
+.login-network-card > .icon {
+  width: 21px;
+  height: 21px;
+}
+.login-flyout p {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #c2cde1;
+  margin: 13px 1px 0;
+}
+.login-power-menu {
+  width: 190px;
+  padding: 6px;
+}
+.login-power-menu > button {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 13px 16px;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: white;
+  text-align: left;
+  cursor: pointer;
+}
+.login-power-menu > button:hover {
+  background: #ffffff18;
+}
+.login-closed {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #071225ed;
+  color: white;
+  text-align: center;
+  font-family: "Segoe UI", sans-serif;
+}
+.login-closed > .icon {
+  width: 50px;
+  height: 50px;
+  margin-bottom: 18px;
+}
+.login-closed h1 {
+  font-size: 27px;
+  font-weight: 400;
+}
+.login-closed p {
+  color: #d0daea;
+}
+.login-closed button {
+  margin-top: 20px;
+  padding: 10px 18px;
+  border: 1px solid #fff7;
+  border-radius: 4px;
+  background: #ffffff12;
+  color: white;
+  cursor: pointer;
+}
+#demo-login {
+  margin-top: 20px;
+}
+#demo-login input {
+  width: 100%;
+  margin-bottom: 9px;
+}
+.high-contrast .login-flyout {
+  background: #000;
+  border: 2px solid white;
+}
+.high-contrast .login-meos {
+  border: 2px solid white;
+}

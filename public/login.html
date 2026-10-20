@@ -6,8 +6,16 @@
     <meta name="theme-color" content="#092c53" />
     <meta name="robots" content="noindex,nofollow" />
     <title>Aanmelden • Overheidsportaal</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+    <link
+      rel="icon"
+      type="image/x-icon"
+      sizes="32x32"
+      href="/favicon.ico?v=2"
+    />
     <link rel="stylesheet" href="/css/style.css" />
-    <link rel="stylesheet" href="/css/windows11.css?v=signin-layout-2" />
+    <link rel="stylesheet" href="/css/windows11.css?v=discord-login-3" />
+    <link rel="stylesheet" href="/css/login-options.css" />
   </head>
   <body>
     <div class="wallpaper" aria-hidden="true">
@@ -21,102 +29,70 @@
       </div>
       <div class="login-center">
         <div class="account-avatar" data-icon="user"></div>
-        <h1 id="login-name">Gebruiker</h1>
+        <h1 id="login-name">Welkom</h1>
         <p class="login-subtitle">Meld je aan op je overheidswerkplek.</p>
-        <button id="other-user" class="login-choice">
-          Andere gebruiker <span data-icon="arrow"></span>
-        </button>
         <form id="login-form">
-          <label class="sr-only" for="username"
-            >Gebruikersnaam of Discord-naam</label
-          ><input
-            id="username"
-            name="username"
-            autocomplete="username"
-            placeholder="Gebruikersnaam of Discord-naam"
-            hidden
-            required
-            maxlength="80"
-          /><label class="sr-only" for="password">Wachtwoord</label>
-          <div class="password-input">
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              placeholder="Wachtwoord"
-              required
-              maxlength="128"
-            /><button
-              type="submit"
-              aria-label="Aanmelden"
-              title="Aanmelden"
-              data-icon="arrow"
-            ></button>
-          </div>
-          <p class="login-help">
-            Je overheidsaccount is gekoppeld aan je Discord-identiteit.
-          </p>
-        </form>
-        <button
-          id="register-toggle"
-          class="login-register-toggle"
-          type="button"
-          hidden
-        >
-          Nieuw bij politie of ambulance? Account aanmaken
-        </button>
-        <form id="register-form" hidden>
-          <label class="sr-only" for="register-username"
-            >Nieuwe gebruikersnaam</label
+          <button
+            id="discord-signin"
+            type="submit"
+            class="login-discord-button"
           >
-          <input
-            id="register-username"
+            <span data-icon="discord"></span>Inloggen met Discord<span
+              data-icon="arrow"
+            ></span>
+          </button>
+        </form>
+        <p class="login-help">
+          Gebruik je Discord-account. Je dienstrol of de toegang die de eigenaar
+          heeft ingesteld bepaalt wat je kunt openen.
+        </p>
+        <a
+          class="login-meos"
+          href="https://meos.amsterdamrp.nl/"
+          target="_blank"
+          rel="noopener noreferrer"
+          ><span data-icon="shield"></span>MEOS openen<span
+            data-icon="arrow"
+          ></span
+        ></a>
+        <form id="demo-login" hidden>
+          <label class="sr-only" for="demo-username">Demogebruiker</label
+          ><input
+            id="demo-username"
             name="username"
+            placeholder="Demogebruiker"
             autocomplete="username"
-            placeholder="Kies een gebruikersnaam"
             required
-            maxlength="80"
-          />
-          <p class="login-help">
-            Je Discord-lidmaatschap en dienstrol worden gecontroleerd. Je stelt
-            daarna zelf een wachtwoord in. Ambulanceaccounts kunnen aanmelden
-            zodra de eigenaar de ambulancewerkplek heeft ingeschakeld.
-          </p>
-          <div class="register-actions">
-            <button type="submit" class="register-submit">
-              Doorgaan met Discord
-            </button>
-            <button id="register-cancel" type="button" class="register-cancel">
-              Terug naar aanmelden
-            </button>
-          </div>
+          /><label class="sr-only" for="demo-password">Demowachtwoord</label
+          ><input
+            id="demo-password"
+            name="password"
+            type="password"
+            placeholder="Demowachtwoord"
+            autocomplete="current-password"
+            required
+          /><button type="submit" class="login-discord-button">
+            Demowerkplek openen
+          </button>
         </form>
         <p id="login-error" class="login-error" role="alert"></p>
-        <a
-          id="discord-connect"
-          class="discord-connect"
-          hidden
-          href="/auth/discord/start"
-          >Identiteit bevestigen met Discord <span data-icon="discord"></span
-        ></a>
         <p id="setup-notice" class="setup-notice" hidden>
           Discord-login moet nog door de beheerder worden ingesteld.
         </p>
       </div>
       <div class="login-bottom">
         <div class="login-accounts">
-          <button class="login-profile selected" id="default-account">
-            <span data-icon="user"></span>
-            <span id="default-account-name">Gebruiker</span></button
-          ><button class="login-profile" id="switch-account">
-            <span data-icon="user"></span> Andere gebruiker
+          <button class="login-profile selected" id="switch-account">
+            <span data-icon="user"></span
+            ><span id="default-account-name">Discord-account</span>
           </button>
         </div>
         <div class="login-system">
           <span>NLD</span
           ><button
             aria-label="Netwerkstatus"
+            aria-controls="login-wifi-menu"
+            aria-expanded="false"
             id="login-network"
             data-icon="wifi"
           ></button
@@ -126,12 +102,57 @@
             data-icon="accessibility"
           ></button
           ><button
-            aria-label="Aanmeldopties"
+            aria-label="Afsluiten"
+            aria-controls="login-power-menu"
+            aria-expanded="false"
             id="login-power"
             data-icon="power"
           ></button>
         </div>
       </div>
+      <aside
+        id="login-wifi-menu"
+        class="login-flyout"
+        aria-label="Netwerkverbinding"
+        hidden
+      >
+        <header>
+          <span data-icon="wifi"></span><strong>Wi-Fi</strong
+          ><button
+            type="button"
+            class="login-flyout-close"
+            data-close-flyout
+            aria-label="Netwerkmenu sluiten"
+          >
+            ×
+          </button>
+        </header>
+        <div class="login-network-card">
+          <span data-icon="wifi"></span>
+          <div>
+            <strong>Amsterdam wifi</strong
+            ><small id="login-network-state">Verbinding controleren…</small>
+          </div>
+          <span id="wifi-connected" data-icon="check"></span>
+        </div>
+        <p id="login-network-detail">Verbinding met je digitale werkplek.</p>
+      </aside>
+      <aside
+        id="login-power-menu"
+        class="login-flyout login-power-menu"
+        aria-label="Afsluitopties"
+        hidden
+      >
+        <button type="button" id="login-close">
+          <span data-icon="power"></span>Afsluiten
+        </button>
+      </aside>
+    </section>
+    <section id="login-closed" class="login-closed" hidden>
+      <span data-icon="power"></span>
+      <h1>Werkplek afgesloten</h1>
+      <p>Je kunt dit tabblad of browservenster sluiten.</p>
+      <button type="button" id="login-return">Terug naar aanmelden</button>
     </section>
     <script type="module" src="/js/login.js"></script>
   </body>

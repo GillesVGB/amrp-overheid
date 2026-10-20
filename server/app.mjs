@@ -33,6 +33,7 @@ import {
   detectFile,
   permissions,
   normalizeAccountAccess,
+  token,
 } from "./security.mjs";
 import { createDiscordSync } from "./discord-sync.mjs";
 import { previewCallsignImport, importCallsigns } from "./callsign-import.mjs";
@@ -54,7 +55,7 @@ export async function createApp(config, options = {}) {
           connectSrc: ["'self'"],
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],
-          frameAncestors: ["'none'"],
+          frameAncestors: ["'self'"],
           frameSrc: ["'self'"],
           baseUri: ["'none'"],
           formAction: ["'self'"],
@@ -681,8 +682,11 @@ export async function createApp(config, options = {}) {
     res.json({ ok: true });
   });
   app.post("/api/accounts", ...w("accounts"), async (req, res) => {
+    const discordId = snowflake(req.body.discordId);
     const username = text(
-      req.body.username,
+      typeof req.body.username === "string" && req.body.username.trim()
+        ? req.body.username
+        : "discord_" + discordId,
       "Gebruikersnaam",
       80,
     ).toLowerCase();
@@ -691,21 +695,23 @@ export async function createApp(config, options = {}) {
       400,
       "Gebruik alleen letters, cijfers, punten, streepjes en underscores.",
     );
-    const discordId = snowflake(req.body.discordId),
-      hash = await hashPassword(req.body.password),
+    const hash = await hashPassword(req.body.password || token()),
       target = id(),
       access = Object.hasOwn(req.body, "accessProfile")
         ? normalizeAccountAccess(
             req.body.accessProfile,
             req.body.accessPermissions,
           )
-        : null;
+        : req.body.password
+          ? null
+          : normalizeAccountAccess("police-agent", { policeRead: true });
     transaction(db, () => {
-      db.prepare("INSERT INTO users VALUES(?,?,?,?,1,1,?)").run(
+      db.prepare("INSERT INTO users VALUES(?,?,?,?,1,?,?)").run(
         target,
         username,
         discordId,
         hash,
+        req.body.password ? 1 : 0,
         timestamp(),
       );
       if (access) setAccountAccess(db, target, access, req.auth.user.id);

@@ -22,6 +22,7 @@ import {
   transaction,
 } from "./database.mjs";
 const API = "https://discord.com/api/v10";
+import { completeDiscordLogin } from "./discord-login.mjs";
 export function authentication({
   db,
   config,
@@ -343,6 +344,43 @@ export function authentication({
     }
   };
   function install(app) {
+    app.post("/auth/discord/login", sameOrigin, (req, res) => {
+      requireValue(
+        config.discordReady,
+        503,
+        "Discord-login is nog niet ingesteld.",
+      );
+      limit("discord-login:" + req.ip, 30, 60000);
+      const state = token(),
+        verifier = token();
+      const old = cookieMap(req)[flowName];
+      db.prepare("DELETE FROM discord_login_flows WHERE expires_at<?").run(
+        clock(),
+      );
+      if (old)
+        db.prepare("DELETE FROM discord_login_flows WHERE hash=?").run(
+          digest(old),
+        );
+      db.prepare("INSERT INTO discord_login_flows VALUES(?,?,?)").run(
+        digest(state),
+        verifier,
+        clock() + 5 * 60e3,
+      );
+      res.cookie(flowName, state, { ...cookies, maxAge: 5 * 60e3 });
+      const params = new URLSearchParams({
+        client_id: config.clientId,
+        redirect_uri: config.origin + "/auth/discord/callback",
+        response_type: "code",
+        scope: "identify guilds.members.read",
+        state,
+        code_challenge: Buffer.from(digest(verifier), "hex").toString(
+          "base64url",
+        ),
+        code_challenge_method: "S256",
+      });
+      if (req.body?.switchAccount === true) params.set("prompt", "consent");
+      res.json({ oauthUrl: "https://discord.com/oauth2/authorize?" + params });
+    });
     app.get("/api/health", (req, res) =>
       res.json({
         ok: true,
@@ -508,14 +546,21 @@ export function authentication({
         const signup = db
           .prepare("SELECT * FROM signup_flows WHERE hash=?")
           .get(digest(state));
+        const direct = db
+          .prepare("SELECT * FROM discord_login_flows WHERE hash=?")
+          .get(digest(state));
         requireValue(
           (flow?.kind === "oauth" && flow.expires_at > clock()) ||
-            (signup && signup.expires_at > clock()),
+            (signup && signup.expires_at > clock()) ||
+            (direct && direct.expires_at > clock()),
           401,
           "Deze aanmeldpoging is verlopen.",
         );
         db.prepare("DELETE FROM auth_flows WHERE hash=?").run(digest(state));
         db.prepare("DELETE FROM signup_flows WHERE hash=?").run(digest(state));
+        db.prepare("DELETE FROM discord_login_flows WHERE hash=?").run(
+          digest(state),
+        );
         requireValue(
           !req.query.iss || req.query.iss === "https://discord.com",
           403,
@@ -530,6 +575,7 @@ export function authentication({
           grant_type: "authorization_code",
           code: req.query.code,
           redirect_uri: config.origin + "/auth/discord/callback",
+          ...(direct ? { code_verifier: direct.verifier } : {}),
         });
         const tokens = {
           accessToken: value.access_token,
@@ -537,6 +583,17 @@ export function authentication({
           expiresAt: clock() + value.expires_in * 1000,
         };
         const verified = await member(tokens);
+        if (direct) {
+          const user = await completeDiscordLogin(
+            db,
+            verified,
+            config.roles.owner || [],
+          );
+          createSession(res, user, verified.tokens);
+          res.clearCookie(flowName, cookies);
+          audit(db, user, "sessie.discord_aangemeld", user.id);
+          return res.redirect("/");
+        }
         if (signup) {
           const policeRole = [
               ...(config.roles.police || []),
@@ -634,6 +691,7 @@ export function authentication({
           req.auth.identity.global_name || req.auth.identity.username,
         settings: { name: getSettings(db).name },
         demo: Boolean(config.demo),
+        authMode: config.demo ? "password" : "discord",
       }),
     );
     app.post("/auth/logout", sameOrigin, (req, res) => {

@@ -2,141 +2,122 @@ import { icon } from "./icons.js";
 import { createApi } from "./api.js";
 const $ = (id) => document.getElementById(id),
   api = createApi();
-const rememberedUsername = (() => {
-  try {
-    return localStorage.getItem("amrp-last-username") || "";
-  } catch {
-    return "";
-  }
-})();
-const defaultUsername = rememberedUsername;
-function rememberUsername(value) {
-  try {
-    localStorage.setItem("amrp-last-username", value.trim());
-  } catch {
-    // The display name is optional; credentials are never stored.
-  }
-}
+let checking = false;
 try {
   const wallpaper = localStorage.getItem("amrp-wallpaper");
-  if (wallpaper)
-    document.querySelectorAll(".wallpaper").forEach((element) => {
-      element.dataset.wallpaper = wallpaper;
-    });
+  if (["bloom", "classic", "midnight", "amsterdam"].includes(wallpaper))
+    document.querySelector(".wallpaper").dataset.wallpaper = wallpaper;
+  const name = localStorage.getItem("amrp-last-username");
+  if (name) $("default-account-name").textContent = name;
 } catch {
-  // Use the default wallpaper when storage is unavailable.
+  /* Use default appearance when browser storage is unavailable. */
 }
-$("default-account-name").textContent = defaultUsername || "Gebruiker";
-$("login-name").textContent = rememberedUsername || "Aanmelden";
-$("username").value = defaultUsername;
-$("username").hidden = Boolean(rememberedUsername);
-$("other-user").hidden = !rememberedUsername;
-document
-  .querySelectorAll("[data-icon]")
-  .forEach((el) => (el.innerHTML = icon(el.dataset.icon)));
-$("other-user").addEventListener("click", () => {
-  $("login-form").hidden = false;
-  $("other-user").hidden = true;
-  $("login-name").textContent = "Andere gebruiker";
-  $("username").hidden = false;
-  $("username").value = "";
-  $("username").focus();
+document.querySelectorAll("[data-icon]").forEach((element) => {
+  element.innerHTML = icon(element.dataset.icon);
 });
-$("switch-account").addEventListener("click", () => {
-  $("login-form").hidden = false;
-  $("other-user").hidden = true;
-  $("login-name").textContent = "Andere gebruiker";
-  $("username").hidden = false;
-  $("username").value = "";
-  $("username").focus();
-  document
-    .querySelectorAll(".login-profile")
-    .forEach((x) => x.classList.toggle("selected", x.id === "switch-account"));
-});
-$("default-account").addEventListener("click", () => {
-  $("login-name").textContent = defaultUsername || "Gebruiker";
-  $("login-form").hidden = false;
-  $("other-user").hidden = true;
-  $("username").hidden = Boolean(defaultUsername);
-  $("username").value = defaultUsername;
-  if (defaultUsername) $("password").focus();
-  else $("username").focus();
-  document
-    .querySelectorAll(".login-profile")
-    .forEach((x) => x.classList.toggle("selected", x.id === "default-account"));
-});
-$("register-toggle").addEventListener("click", () => {
-  $("login-form").hidden = true;
-  $("register-toggle").hidden = true;
-  $("register-form").hidden = false;
-  $("login-error").textContent = "";
-  $("login-name").textContent = "Account aanmaken";
-  $("register-username").focus();
-});
-$("register-cancel").addEventListener("click", () => {
-  $("register-form").hidden = true;
-  $("register-toggle").hidden = false;
-  $("login-form").hidden = false;
-  $("login-name").textContent = defaultUsername || "Aanmelden";
-  $("login-error").textContent = "";
-});
-$("register-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const button = event.target.querySelector('[type="submit"]');
-  button.disabled = true;
+async function signin(switchAccount = false) {
+  if (checking) return;
+  checking = true;
+  $("discord-signin").disabled = true;
   $("login-error").textContent = "";
   try {
-    const values = Object.fromEntries(new FormData(event.target));
-    const result = await api("/auth/register", {
+    const result = await api("/auth/discord/login", {
       method: "POST",
-      body: values,
+      body: { switchAccount },
     });
-    rememberUsername(values.username);
-    location.assign(result.oauthUrl);
+    const target = new URL(result.oauthUrl);
+    if (target.origin !== "https://discord.com")
+      throw Error("Ongeldig aanmeldadres.");
+    location.assign(target.href);
+  } catch (error) {
+    $("login-error").textContent = error.message;
+  } finally {
+    checking = false;
+    $("discord-signin").disabled = false;
+  }
+}
+$("login-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  signin();
+});
+$("switch-account").addEventListener("click", () => signin(true));
+$("demo-login").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = event.submitter;
+  button.disabled = true;
+  try {
+    const result = await api("/auth/login", {
+      method: "POST",
+      body: Object.fromEntries(new FormData(event.currentTarget)),
+    });
+    if (result.oauthUrl) location.assign(result.oauthUrl);
+    else location.replace("/");
   } catch (error) {
     $("login-error").textContent = error.message;
   } finally {
     button.disabled = false;
   }
 });
+function closeFlyouts() {
+  for (const [button, panel] of [
+    ["login-network", "login-wifi-menu"],
+    ["login-power", "login-power-menu"],
+  ]) {
+    $(panel).hidden = true;
+    $(button).setAttribute("aria-expanded", "false");
+  }
+}
+function updateNetwork() {
+  $("login-network-state").textContent = navigator.onLine
+    ? "Verbonden · beveiligde werkplek"
+    : "Geen internetverbinding";
+  $("login-network-detail").textContent = navigator.onLine
+    ? "Amsterdam wifi is de naam van je werkplekverbinding. Je wifi-netwerk beheer je via Windows."
+    : "Controleer je verbinding in Windows en probeer het opnieuw.";
+  $("wifi-connected").hidden = !navigator.onLine;
+}
 $("login-network").addEventListener("click", () => {
-  $("login-error").textContent = navigator.onLine
-    ? "Netwerkverbinding beschikbaar."
-    : "Er is geen netwerkverbinding.";
+  const open = $("login-wifi-menu").hidden;
+  closeFlyouts();
+  $("login-wifi-menu").hidden = !open;
+  $("login-network").setAttribute("aria-expanded", String(open));
+  updateNetwork();
 });
+$("login-power").addEventListener("click", () => {
+  const open = $("login-power-menu").hidden;
+  closeFlyouts();
+  $("login-power-menu").hidden = !open;
+  $("login-power").setAttribute("aria-expanded", String(open));
+});
+document.addEventListener("click", (event) => {
+  if (
+    event.target.closest("[data-close-flyout]") ||
+    !event.target.closest(".login-flyout,#login-network,#login-power")
+  )
+    closeFlyouts();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeFlyouts();
+    $("login-network").focus();
+  }
+});
+window.addEventListener("online", updateNetwork);
+window.addEventListener("offline", updateNetwork);
 $("login-accessibility").addEventListener("click", () =>
   document.body.classList.toggle("high-contrast"),
 );
-$("login-power").addEventListener("click", () => {
-  $("login-error").textContent =
-    "Je kunt dit browservenster sluiten. Je computer wordt niet afgesloten.";
+$("login-close").addEventListener("click", () => {
+  closeFlyouts();
+  $("login").hidden = true;
+  $("login-closed").hidden = false;
+  $("login-return").focus();
+  window.close();
 });
-$("login-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const button = event.target.querySelector("button");
-  button.disabled = true;
-  $("login-error").textContent = "";
-  try {
-    const values = Object.fromEntries(new FormData(event.target));
-    const result = await api("/auth/login", {
-      method: "POST",
-      body: values,
-    });
-    rememberUsername(values.username);
-    $("default-account-name").textContent = values.username;
-    $("password").value = "";
-    if (result.oauthUrl) {
-      $("login-form").hidden = true;
-      $("discord-connect").hidden = false;
-      $("login-name").textContent = "Bevestig je identiteit";
-      $("login-error").textContent =
-        "Je wachtwoord klopt. Ga verder met je gekoppelde Discord-account.";
-    } else location.replace("/");
-  } catch (error) {
-    $("login-error").textContent = error.message;
-  } finally {
-    button.disabled = false;
-  }
+$("login-return").addEventListener("click", () => {
+  $("login-closed").hidden = true;
+  $("login").hidden = false;
+  $("discord-signin").focus();
 });
 const parameters = new URLSearchParams(location.search),
   message = parameters.get("loginError") || parameters.get("melding");
@@ -147,8 +128,18 @@ if (message) {
 try {
   const health = await api("/api/health");
   $("setup-notice").hidden = health.discordConfigured || health.demo;
-  $("register-toggle").hidden = !health.discordConfigured || health.demo;
-  await api("/api/me");
+  $("discord-signin").disabled = !health.discordConfigured || health.demo;
+  $("demo-login").hidden = !health.demo;
+  $("login-form").hidden = Boolean(health.demo);
+  const me = await api("/api/me");
+  try {
+    localStorage.setItem(
+      "amrp-last-username",
+      me.discordName || me.user.username,
+    );
+  } catch {
+    /* Optional local display preference. */
+  }
   location.replace("/");
 } catch (error) {
   if (error.status !== 401) $("login-error").textContent = error.message;
