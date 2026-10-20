@@ -271,8 +271,30 @@
 }
 :root[data-theme="dark"] .taskbar {
   background: #181818ed;
-  color: #eee;
+  color: #fff;
   border-color: #ffffff19;
+}
+:root[data-theme="dark"]
+  .taskbar
+  :is(
+    .taskbar-search,
+    input,
+    .system-tray,
+    .system-tray button,
+    .system-tray small
+  ) {
+  color: #fff;
+}
+:root[data-theme="dark"] .taskbar input::placeholder {
+  color: #fff;
+  opacity: 1;
+}
+:root[data-theme="dark"] .pinned-apps button.active {
+  background: #ffffff18;
+}
+:root[data-theme="dark"] .quick-settings-button:hover,
+:root[data-theme="dark"] .quick-settings-button[aria-expanded="true"] {
+  background: #ffffff18 !important;
 }
 :root[data-theme="dark"] :is(.taskbar-search, .start-search, .search-control) {
   background: #303030;
