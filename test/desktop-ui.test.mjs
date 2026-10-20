@@ -102,10 +102,7 @@ test("Aanmeldscherm gebruikt Discord, toont Amsterdam wifi en sluit met een veil
   assert.equal(login.options.method, "POST");
   assert.ok(!login.options.body.includes("password"));
   assert.match(ui.assigned[0], /^https:\/\/discord.com\//);
-  assert.equal(
-    ui.document.querySelector(".login-meos").getAttribute("href"),
-    "https://meos.amsterdamrp.nl/",
-  );
+  assert.equal(ui.document.querySelector(".login-meos"), null);
 });
 
 test("Aparte appvensters blijven bestaan bij wisselen, minimaliseren, maximaliseren en dupliceren", (t) => {
