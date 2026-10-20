@@ -11,7 +11,14 @@
     }
   ],
   "rewrites": [
-    { "source": "/auth/:path*", "destination": "/api/auth/:path*" }
+    {
+      "source": "/auth/:portalPath*",
+      "destination": "/api/portal?__portal_route=/auth/:portalPath*"
+    },
+    {
+      "source": "/api/:portalPath*",
+      "destination": "/api/portal?__portal_route=/api/:portalPath*"
+    }
   ],
   "crons": [
     { "path": "/api/cron/discord-sync", "schedule": "0 4 * * *" }

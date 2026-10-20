@@ -2,14 +2,13 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { Readable } from "node:stream";
 import { Pool } from "pg";
 import { del, get, put } from "@vercel/blob";
 import serverless from "serverless-http";
 import { createApp } from "./app.mjs";
 import { configFromEnv } from "./config.mjs";
 import { openDatabase } from "./database.mjs";
-import { bridgeRequest } from "./netlify-function-adapter.mjs";
+import { bridgeVercelRequest } from "./vercel-function-adapter.mjs";
 import { withNetlifyPortalState } from "./netlify-state.mjs";
 
 const templateDir = fs.mkdtempSync(path.join(os.tmpdir(), "amrp-template-"));
@@ -65,7 +64,7 @@ const portal = await createApp(config, {
   serverless: true,
   bootstrapSecret: process.env.INITIAL_SETUP_KEY || "",
 });
-const proxy = serverless(portal.app);
+const proxy = serverless(portal.app, { binary: true });
 
 export async function withPortalState(callback) {
   const { result, afterCommit } = await withNetlifyPortalState(
@@ -98,40 +97,10 @@ export function runDiscordSync() {
   return withPortalState(() => portal.roster.run());
 }
 
-export async function handleVercelRequest(req, res, { authRoute = false } = {}) {
-  const url = new URL(req.url, config.origin);
-  if (authRoute) {
-    url.pathname = url.pathname.replace(/^\/api\/auth(?=\/|$)/, "/auth");
-  }
-  const headers = new Headers();
-  for (const [name, value] of Object.entries(req.headers)) {
-    if (Array.isArray(value)) value.forEach((item) => headers.append(name, item));
-    else if (value !== undefined) headers.set(name, value);
-  }
-  const method = req.method || "GET";
-  const request = new Request(url, {
-    method,
-    headers,
-    ...(["GET", "HEAD"].includes(method)
-      ? {}
-      : { body: Readable.toWeb(req), duplex: "half" }),
+export function handleVercelRequest(req, res) {
+  return bridgeVercelRequest(req, res, {
+    origin: config.origin,
+    withPortalState,
+    proxy,
   });
-  const context = {
-    ip:
-      req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-      req.socket?.remoteAddress ||
-      "",
-    requestId: req.headers["x-vercel-id"] || "",
-  };
-  const response = await withPortalState(() =>
-    bridgeRequest(request, context, proxy),
-  );
-  res.statusCode = response.status;
-  const cookies = response.headers.getSetCookie?.() || [];
-  response.headers.forEach((value, name) => {
-    if (name !== "set-cookie") res.setHeader(name, value);
-  });
-  if (cookies.length) res.setHeader("Set-Cookie", cookies);
-  const body = ["HEAD"].includes(method) ? null : Buffer.from(await response.arrayBuffer());
-  res.end(body);
 }
