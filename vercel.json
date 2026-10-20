@@ -5,8 +5,8 @@
   "redirects": [
     {
       "source": "/:path*",
-      "missing": [
-        { "type": "host", "value": "overheid.amsterdamrp.nl" }
+      "has": [
+        { "type": "host", "value": "overheid-amrp.vercel.app" }
       ],
       "destination": "https://overheid.amsterdamrp.nl/:path*",
       "permanent": true
