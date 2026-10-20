@@ -10,6 +10,7 @@ import {
   snowflake,
 } from "./security.mjs";
 import discordRanks from "./discord-ranks.json" with { type: "json" };
+import { installWorkspaceSchema } from "./workspace-schema.mjs";
 export const id = () => randomUUID();
 export const timestamp = () => new Date().toISOString();
 export function openDatabase(config) {
@@ -80,6 +81,7 @@ export function openDatabase(config) {
       ''
     )`);
   }
+  installWorkspaceSchema(db);
   if (!db.prepare("SELECT id FROM settings").get()) {
     db.prepare("INSERT INTO settings VALUES(1,?)").run(
       JSON.stringify({

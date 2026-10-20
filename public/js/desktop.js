@@ -2,9 +2,12 @@ import { icon } from "./icons.js";
 import { createPortal, escapeHtml as e } from "./politie.js";
 import { createApi } from "./api.js";
 import { createAmbulance } from "./ambulance.js";
+import { createWorkspace } from "./workspace.js";
 const $ = (id) => document.getElementById(id);
 let me = null,
   portal = null,
+  workspace = null,
+  ambulance = null,
   currentApp = null,
   toastTimer,
   currentWallpaper = "bloom";
@@ -72,7 +75,11 @@ function positionDesktopIcons() {
   [...area.querySelectorAll(".desktop-icon[data-app]")].forEach(
     (item, index) => {
       const rect = area.getBoundingClientRect(),
-        pos = saved[item.dataset.app] || { x: 18, y: 18 + index * 104 },
+        rows = Math.max(1, Math.floor((rect.height - 18) / 104)),
+        pos = saved[item.dataset.app] || {
+          x: 18 + Math.floor(index / rows) * 104,
+          y: 18 + (index % rows) * 104,
+        },
         maxX = Math.max(0, rect.width - item.offsetWidth),
         maxY = Math.max(0, rect.height - item.offsetHeight);
       item.style.left = Math.max(0, Math.min(maxX, Number(pos.x) || 0)) + "px";
@@ -139,6 +146,27 @@ function apps() {
       className: "ambulance",
       access: me.permissions.ambulance,
     },
+    {
+      id: "files",
+      label: "Verkenner",
+      icon: "folder",
+      className: "files",
+      access: true,
+    },
+    {
+      id: "training",
+      label: "Opleidingen",
+      icon: "badge",
+      className: "training",
+      access: true,
+    },
+    {
+      id: "requests",
+      label: "Aanvragen",
+      icon: "file",
+      className: "requests",
+      access: true,
+    },
   ].filter((x) => x.access);
 }
 function homeApp() {
@@ -173,14 +201,59 @@ function renderDesktop() {
     `${e(me.discordName)}<small>${me.permissions.owner ? "Eigenaar" : me.permissions.admin ? "Overheidsbeheerder" : me.permissions.policeWrite ? "Korpsleiding" : me.permissions.policeRead ? "Politieagent" : me.permissions.ambulance ? "Ambulancedienst" : "Medewerker"}</small>`;
   $("demo-banner").hidden = !me.demo;
 }
+let searchTimer,
+  searchVersion = 0,
+  searchResults = [];
+async function searchWorkspace(query) {
+  const version = ++searchVersion;
+  clearTimeout(searchTimer);
+  const target = $("work-search-results");
+  if (!target) return;
+  searchResults = [];
+  if (query.trim().length < 2) {
+    target.textContent =
+      "Zoek ook naar medewerkers, roepnummers en documenten.";
+    return;
+  }
+  target.textContent = "Zoeken…";
+  searchTimer = setTimeout(async () => {
+    try {
+      const { results } = await api(
+        "/api/search?q=" + encodeURIComponent(query.trim().slice(0, 100)),
+      );
+      if (version !== searchVersion || !target.isConnected) return;
+      searchResults = results;
+      const labels = {
+        personnel: "Medewerker",
+        callsign: "Roepnummer",
+        archive: "Archief",
+        document: "Document",
+        course: "Opleiding",
+      };
+      target.innerHTML = results.length
+        ? results
+            .map(
+              (r, index) =>
+                `<button class="work-search-result" data-search-result="${index}">${icon(r.type === "personnel" ? "users" : r.type === "callsign" ? "table" : "file")}<span><strong>${e(r.title)}</strong><small>${e(labels[r.type] || "Werkplek")} · ${e(r.subtitle)}</small></span>${icon("chevron")}</button>`,
+            )
+            .join("")
+        : "Geen resultaten binnen jouw toegangsrechten.";
+    } catch (error) {
+      if (version === searchVersion && target.isConnected)
+        target.textContent = error.message;
+    }
+  }, 350);
+}
 function startMenu(query = "") {
   const filtered = apps().filter((x) =>
     x.label.toLowerCase().includes(query.toLowerCase()),
   );
   $("start-menu").innerHTML =
-    `<div class="start-search">${icon("search")}<input id="start-search-input" type="search" value="${e(query)}" placeholder="Zoeken naar apps" aria-label="Zoeken naar apps"></div><div class="start-section-heading"><strong>Vastgemaakt</strong><span>${filtered.length} apps</span></div><div class="start-app-grid">${filtered.map((a) => `<button data-app="${a.id}"><span class="app-symbol ${a.className}">${icon(a.icon)}</span><span>${a.label}</span></button>`).join("")}</div><div class="start-section-heading"><strong>Werkplek</strong><span>Amsterdam Overheid</span></div><div class="start-recommended"><span class="app-symbol police">${icon("shield")}</span><div><strong>Beveiligde overheidsomgeving</strong><small>Jouw rechten volgen je Discord-rollen.</small></div></div><footer class="start-footer"><button data-action="my-password"><span class="user-initials">${e(initials(me.discordName))}</span>${e(me.discordName)}</button><button data-action="logout" title="Afmelden" aria-label="Afmelden">${icon("power")}</button></footer>`;
+    `<div class="start-search">${icon("search")}<input id="start-search-input" type="search" value="${e(query)}" placeholder="Apps, medewerkers en documenten zoeken" aria-label="Zoeken op je werkplek" maxlength="100"></div><div class="start-section-heading"><strong>Vastgemaakt</strong><span>${filtered.length} apps</span></div><div class="start-app-grid">${filtered.map((a) => `<button data-app="${a.id}"><span class="app-symbol ${a.className}">${icon(a.icon)}</span><span>${a.label}</span></button>`).join("")}</div><div class="start-section-heading"><strong>Werkplek doorzoeken</strong><span>Alleen jouw afdelingen</span></div><div id="work-search-results" class="work-search-results" aria-live="polite"></div><footer class="start-footer"><button data-action="my-password"><span class="user-initials">${e(initials(me.discordName))}</span>${e(me.discordName)}</button><button data-action="logout" title="Afmelden" aria-label="Afmelden">${icon("power")}</button></footer>`;
+  searchWorkspace(query);
   $("start-search-input").addEventListener("input", (event) => {
     const value = event.target.value;
+    searchWorkspace(value);
     const grid = $("start-menu").querySelector(".start-app-grid");
     grid.innerHTML = apps()
       .filter((x) => x.label.toLowerCase().includes(value.toLowerCase()))
@@ -200,12 +273,28 @@ function toggleStart(force) {
 async function launch(appId) {
   const a = apps().find((x) => x.id === appId);
   if (!a) return;
+  portal?.destroy?.();
+  portal = null;
+  workspace?.destroy();
+  workspace = null;
+  ambulance?.destroy?.();
+  ambulance = null;
+  $("app-body").onclick = null;
+  $("app-body").oninput = null;
+  $("app-body").onchange = null;
+  $("app-body").onsubmit = null;
+  if ($("dialog").open && !me.user.mustChange) $("dialog").close();
   currentApp = appId;
   toggleStart(false);
   $("app-window").hidden = false;
   $("window-title").innerHTML =
     icon(a.icon) + e(a.label) + " — " + e(me.settings.name);
   renderDesktop();
+  if (["files", "training", "requests"].includes(appId)) {
+    workspace = createWorkspace({ api, me, toast, onChange: () => {} });
+    await workspace.render($("app-body"), appId);
+    return;
+  }
   if (appId === "pc") {
     $("app-body").innerHTML =
       `<div class="explorer"><span class="eyebrow">BEVEILIGDE WERKPLEK</span><h1>Deze pc</h1><p>Welkom, ${e(me.discordName)}. Open een applicatie om aan de slag te gaan.<br>De beschikbare applicaties volgen je actuele rollen in de overheids-Discord.</p><div class="explorer-apps">${apps()
@@ -226,7 +315,8 @@ async function launch(appId) {
     return;
   }
   if (appId === "ambulance") {
-    await createAmbulance({ api, me, toast }).open();
+    ambulance = createAmbulance({ api, me, toast });
+    await ambulance.open();
     return;
   }
   try {
@@ -325,6 +415,23 @@ $("desktop-search").addEventListener("input", () => {
 document.addEventListener("click", async (ev) => {
   const target = ev.target.closest("button,a");
   if (!target) return;
+  if (target.dataset.searchResult !== undefined) {
+    const result = searchResults[Number(target.dataset.searchResult)];
+    if (!result) return;
+    try {
+      if (result.action === "files") {
+        await launch("files");
+        await workspace.openDocument(result.id);
+      } else if (result.action === "training") await launch("training");
+      else {
+        await launch("police");
+        await portal?.navigateSearch(result);
+      }
+    } catch (error) {
+      toast(error.message, true);
+    }
+    return;
+  }
   if (Number(target.dataset.draggedUntil) > performance.now()) {
     ev.preventDefault();
     return;
@@ -362,6 +469,12 @@ document.addEventListener("click", async (ev) => {
   }
   const action = target.dataset.action;
   if (action === "close-window") {
+    portal?.destroy?.();
+    portal = null;
+    workspace?.destroy();
+    workspace = null;
+    ambulance?.destroy?.();
+    ambulance = null;
     $("app-window").hidden = true;
     currentApp = null;
     renderDesktop();
@@ -545,6 +658,52 @@ async function checkSession() {
   }
 }
 setInterval(checkSession, 60000);
+let sharedRevision = null,
+  polling = false;
+async function checkChanges() {
+  if (!me || me.user.mustChange || document.hidden || polling) return;
+  polling = true;
+  try {
+    const { revision } = await api("/api/changes");
+    if (sharedRevision === null) {
+      sharedRevision = revision;
+      return;
+    }
+    if (revision !== sharedRevision) {
+      if ($("dialog").open) return;
+      let refreshed = true;
+      if (workspace) refreshed = await workspace.refresh();
+      else if (portal) refreshed = await portal.refresh();
+      else if (ambulance) refreshed = await ambulance.refresh();
+      if (refreshed !== false) sharedRevision = revision;
+    }
+    $("notifications-button").title =
+      "Live verbonden · gecontroleerd " +
+      new Date().toLocaleTimeString("nl-NL", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+  } catch {
+    $("notifications-button").title =
+      "Live verbinding tijdelijk onderbroken; opnieuw verbinden…";
+  } finally {
+    polling = false;
+  }
+}
+setInterval(checkChanges, 10000);
+window.addEventListener("focus", checkChanges);
+document.addEventListener("keydown", (event) => {
+  if (
+    event.ctrlKey &&
+    event.key.toLowerCase() === "k" &&
+    me &&
+    !$("dialog").open
+  ) {
+    event.preventDefault();
+    toggleStart(true);
+    $("start-search-input").focus();
+  }
+});
 window.addEventListener("focus", checkSession);
 fillIcons();
 try {
@@ -552,6 +711,7 @@ try {
   const preference = await api("/api/preferences");
   setWallpaper(preference.wallpaper);
   await enter();
+  await checkChanges();
 } catch (error) {
   lockScreen(error.message);
 }

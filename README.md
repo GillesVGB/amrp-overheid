@@ -16,6 +16,19 @@ Een gedeelde digitale werkplek voor de Amsterdam Roleplay-overheidsdiensten. De 
 - Achtergrondsynchronisatie met Discord en handmatige synchronisatie door bevoegde korpsleiding.
 - Rangrollen zijn vooraf ingesteld in `server/discord-config.json` en `server/discord-ranks.json`.
 - Automatische roepnummertoewijzing gebeurt alleen wanneer de Discord-naam bij een bestaand vrij nummer in de juiste rang past. Onzekere nummers verschijnen als controlepunt.
+- Verkenner met gedeelde en afgeschermde afdelingsmappen, uploaden en slepen van bestanden (maximaal 4 MB), voorvertoning en rapport-, aanvraag- en dienstverslagsjablonen. PDF, afbeeldingen, tekst en gecontroleerde Office-bestanden worden privé bewaard.
+- Opleidingenregister met afrondingen, bevoegdheden en vervaldatums. Medewerkers dienen verlof-, opleidings- en materiaalaanvragen in; bevoegde leiding beoordeelt met een toelichting. Je eigen aanvraag kun je niet zelf goedkeuren.
+- Zoek via Start of Ctrl+K naar toegankelijke medewerkers, roepnummers, documenten en opleidingen. Actieve overzichten controleren elke tien seconden op wijzigingen; open formulieren worden daarbij beschermd.
+- CSV-import voor roepnummers controleert vooraf rangen, dubbele nummers en capaciteit. Gebruik de kolommen `Roepnummer,Rang`; maximaal 500 regels. Een bestand met fouten wordt niet gedeeltelijk opgeslagen.
+- Concepten worden per account bewaard. Wachtwoorden, tokens en uploads komen niet in formulierconcepten.
+
+## Zichtbare databasetabellen op Vercel
+
+Bij het eerste API-verzoek wordt de bestaande database automatisch en atomair overgezet naar afzonderlijke PostgreSQL-tabellen in het schema `public`, waaronder `users`, `personnel`, `callsigns`, `workspace_folders`, `workspace_documents`, `training_courses`, `training_completions`, `employee_requests`, `form_drafts` en `audit`. Deze tabellen zijn daarna de bron van de gegevens en zijn rechtstreeks zichtbaar in Neon. De oude tabel `amrp_portal_state` blijft als migratieback-up bewaard en wordt niet verder bijgewerkt; verwijder die pas na een gecontroleerde back-up.
+
+`amrp_portal_meta` bewaart schema-informatie en de gedeelde revisie. Verzoeken worden transactioneel verwerkt met een geïsoleerde SQLite-werkverbinding voor de bestaande applicatiecode en daarna vastgelegd in de PostgreSQL-tabellen. Dit voorkomt verlies van de bestaande accounts en koppelingen. Het is bedoeld voor deze gedeelde werkplek, niet voor grote aantallen gelijktijdige zware verzoeken. Geüploade bestanden blijven in private Vercel Blob; de tabellen bevatten hun metadata.
+
+Een succesvolle Discord-rechtencontrole wordt maximaal dertig seconden gedeeld via de versleutelde serversessie. Tokenvernieuwing wordt samengevoegd bij gelijktijdige acties; na het verstrijken van de controletermijn worden rechten opnieuw bij Discord gecontroleerd.
 
 ## Lokaal bekijken
 

@@ -9,7 +9,7 @@ import { createApp } from "./app.mjs";
 import { configFromEnv } from "./config.mjs";
 import { openDatabase } from "./database.mjs";
 import { bridgeVercelRequest } from "./vercel-function-adapter.mjs";
-import { withNetlifyPortalState } from "./netlify-state.mjs";
+import { withPostgresPortalState } from "./postgres-state.mjs";
 
 const templateDir = fs.mkdtempSync(path.join(os.tmpdir(), "amrp-template-"));
 const config = configFromEnv({
@@ -19,7 +19,9 @@ const config = configFromEnv({
 });
 const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
 if (!connectionString)
-  throw new Error("Koppel eerst een PostgreSQL-database aan dit Vercel-project.");
+  throw new Error(
+    "Koppel eerst een PostgreSQL-database aan dit Vercel-project.",
+  );
 
 const pool = new Pool({
   connectionString,
@@ -61,22 +63,23 @@ const archiveFiles = {
 const portal = await createApp(config, {
   db,
   archiveFiles,
+  getRevision: currentPortalRevision,
   serverless: true,
   bootstrapSecret: process.env.INITIAL_SETUP_KEY || "",
 });
 const proxy = serverless(portal.app, { binary: true });
 
 export async function withPortalState(callback) {
-  const { result, afterCommit } = await withNetlifyPortalState(
+  const { result, afterCommit } = await withPostgresPortalState(
     config,
-    async (requestDb) => {
+    async (requestDb, { revision }) => {
       const now = Date.now();
       requestDb.prepare("DELETE FROM auth_flows WHERE expires_at<?").run(now);
       requestDb.prepare("DELETE FROM signup_flows WHERE expires_at<?").run(now);
       requestDb.prepare("DELETE FROM sessions WHERE expires_at<?").run(now);
       requestDb.prepare("DELETE FROM rate_limits WHERE expires_at<?").run(now);
       return databaseContext.run(
-        { db: requestDb, afterCommit: [] },
+        { db: requestDb, revision, afterCommit: [] },
         async () => {
           const request = databaseContext.getStore();
           const result = await callback();
@@ -91,6 +94,10 @@ export async function withPortalState(callback) {
       console.error("Een archiefbestand kon niet worden opgeruimd."),
     );
   return result;
+}
+
+export function currentPortalRevision() {
+  return databaseContext.getStore()?.revision ?? 0;
 }
 
 export function runDiscordSync() {

@@ -39,6 +39,7 @@ export function authentication({
   const flowName = config.production ? "__Host-gov-flow" : "gov-flow";
   const verifiedMembers = new Map();
   const pendingMembers = new Map();
+  const refreshedTokens = new Map();
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const clear = (res) => {
     res.clearCookie(sessionName, cookies);
@@ -130,23 +131,61 @@ export function authentication({
     );
     return response.json();
   }
-  async function member(tokens) {
+  async function member(tokens, persistTokens = null) {
     if (discord) return discord.member(tokens);
     if (tokens.expiresAt <= clock() + 30000) {
-      const value = await exchange({
-        grant_type: "refresh_token",
-        refresh_token: tokens.refreshToken,
-      });
-      tokens = {
-        accessToken: value.access_token,
-        refreshToken: value.refresh_token,
-        expiresAt: clock() + value.expires_in * 1000,
-      };
+      const refreshKey = digest(tokens.refreshToken);
+      let refresh = refreshedTokens.get(refreshKey);
+      if (!refresh || refresh.expiresAt <= clock()) {
+        refresh = {
+          expiresAt: clock() + 30000,
+          promise: exchange({
+            grant_type: "refresh_token",
+            refresh_token: tokens.refreshToken,
+          }).then((value) => ({
+            accessToken: value.access_token,
+            refreshToken: value.refresh_token,
+            expiresAt: clock() + value.expires_in * 1000,
+          })),
+        };
+        refreshedTokens.set(refreshKey, refresh);
+      }
+      try {
+        tokens = await refresh.promise;
+        // Discord rotates refresh tokens. Save them before the membership request:
+        // a temporary Discord outage must not discard a successful refresh.
+        persistTokens?.(tokens);
+      } catch (error) {
+        if (refreshedTokens.get(refreshKey) === refresh)
+          refreshedTokens.delete(refreshKey);
+        throw error;
+      }
+      for (const [oldKey, entry] of refreshedTokens)
+        if (entry.expiresAt <= clock()) refreshedTokens.delete(oldKey);
+      if (refreshedTokens.size > 512)
+        refreshedTokens.delete(refreshedTokens.keys().next().value);
     }
     const key = digest(tokens.accessToken);
+    // This short verification travels in the encrypted server-side session. It
+    // works across serverless instances, while keeping the same 30-second bound.
+    const sessionCheck = tokens.verification;
+    if (
+      sessionCheck?.key === key &&
+      sessionCheck.guildId === config.guildId &&
+      sessionCheck.expiresAt > clock() &&
+      sessionCheck.expiresAt <= clock() + 30000 &&
+      Array.isArray(sessionCheck.value?.roles) &&
+      sessionCheck.value?.identity?.id
+    )
+      return { ...sessionCheck.value, tokens };
     const cached = verifiedMembers.get(key);
-    if (cached && cached.expiresAt > clock())
+    if (cached && cached.expiresAt > clock()) {
+      tokens = {
+        ...tokens,
+        verification: { ...cached, key, guildId: config.guildId },
+      };
       return { ...cached.value, tokens };
+    }
     verifiedMembers.delete(key);
     let check = pendingMembers.get(key);
     if (!check) {
@@ -166,7 +205,12 @@ export function authentication({
         if (entry.expiresAt <= clock()) verifiedMembers.delete(oldKey);
       if (verifiedMembers.size >= 512)
         verifiedMembers.delete(verifiedMembers.keys().next().value);
-      verifiedMembers.set(key, { value, expiresAt: clock() + 30_000 });
+      const verification = { value, expiresAt: clock() + 30_000 };
+      verifiedMembers.set(key, verification);
+      tokens = {
+        ...tokens,
+        verification: { ...verification, key, guildId: config.guildId },
+      };
       return { ...value, tokens };
     } finally {
       if (pendingMembers.get(key) === check) pendingMembers.delete(key);
@@ -204,7 +248,15 @@ export function authentication({
       requireValue(user?.enabled, 401, "Dit account is uitgeschakeld.");
       let verified;
       try {
-        verified = await member(decrypt(session.tokens, config.key));
+        verified = await member(
+          decrypt(session.tokens, config.key),
+          (tokens) => {
+            db.prepare("UPDATE sessions SET tokens=? WHERE hash=?").run(
+              encrypt(tokens, config.key),
+              hash,
+            );
+          },
+        );
       } catch (error) {
         if ([401, 403].includes(error.status))
           db.prepare("DELETE FROM sessions WHERE hash=?").run(hash);

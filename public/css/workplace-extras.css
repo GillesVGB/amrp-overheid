@@ -1,0 +1,88 @@
+.work-search-results {
+  max-height: 260px;
+  overflow: auto;
+  margin: 0 18px 14px;
+  color: var(--muted, #607086);
+  font-size: 12px;
+  min-height: 35px;
+}
+.work-search-result {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  padding: 10px;
+  cursor: pointer;
+}
+.work-search-result:hover,
+.work-search-result:focus-visible {
+  background: #0078d415;
+}
+.work-search-result > span {
+  flex: 1;
+  min-width: 0;
+}
+.work-search-result strong,
+.work-search-result small {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.work-search-result strong {
+  font-size: 13px;
+  color: var(--text, #1c2b3b);
+  margin-bottom: 3px;
+}
+.work-search-result > .icon {
+  width: 19px;
+  height: 19px;
+  flex: none;
+}
+.form-draft-status {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #55718b;
+  grid-column: 1/-1;
+}
+.form-draft-status .button {
+  font-size: 11px;
+  padding: 3px 8px;
+  margin-left: 8px;
+}
+.csv-preview {
+  max-height: 320px;
+  overflow: auto;
+}
+.app-symbol.files {
+  background: linear-gradient(145deg, #ffd45a, #edaa1b);
+  color: #694909;
+}
+.app-symbol.training {
+  background: linear-gradient(145deg, #8164df, #5848a9);
+  color: #fff;
+}
+.app-symbol.requests {
+  background: linear-gradient(145deg, #35aa91, #117865);
+  color: #fff;
+}
+#start-menu {
+  max-height: calc(100dvh - 80px);
+  overflow: auto;
+}
+.start-app-grid {
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .work-search-results {
+    max-height: 180px;
+  }
+  .heading-actions {
+    flex-wrap: wrap;
+  }
+}

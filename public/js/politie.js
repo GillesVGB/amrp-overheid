@@ -1,4 +1,5 @@
 import { icon } from "./icons.js";
+import { bindDraft } from "./drafts.js";
 export const escapeHtml = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -159,7 +160,8 @@ export function createPortal({
     auditTo = "",
     sort = "name",
     sortDirection = 1,
-    selectedCallsigns = new Set();
+    selectedCallsigns = new Set(),
+    formDraft = null;
   async function load() {
     data = await api("/api/bootstrap");
     selectedCallsigns = new Set(
@@ -370,6 +372,7 @@ export function createPortal({
         "Het centrale register. Zoek een nummer, bekijk de toewijzing of kopieer direct.",
         me.permissions.policeWrite
           ? action("export", "CSV exporteren", "download") +
+              action("import-callsigns", "CSV importeren", "upload") +
               action("deleted-callsigns", "Verwijderde nummers", "history") +
               action("add-number", "Extra roepnummer", "plus", "primary")
           : readOnly(),
@@ -686,6 +689,8 @@ export function createPortal({
     onSave,
     { button = "Opslaan", read = false } = {},
   ) {
+    formDraft?.destroy();
+    formDraft = null;
     $("modal-title").textContent = title;
     $("modal-body").innerHTML = html;
     $("modal-error").textContent = "";
@@ -697,12 +702,29 @@ export function createPortal({
       .forEach((x) => (x.hidden = false));
     $("dialog").oncancel = null;
     $("dialog").showModal();
+    if (!read) {
+      const identity = [...$("modal-form").querySelectorAll("[name]")]
+        .map((input) => input.name + "=" + input.value)
+        .join("|");
+      let hash = 0;
+      for (const char of identity)
+        hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
+      formDraft = bindDraft(
+        $("modal-form"),
+        `police-${section}-${title.replace(/[^a-zA-Z0-9_-]/g, "-")}-${hash}`.slice(
+          0,
+          120,
+        ),
+        { api, userId: me.user.id },
+      );
+    }
     $("modal-form").onsubmit = async (ev) => {
       ev.preventDefault();
       if (!onSave) return;
       $("modal-save").disabled = true;
       try {
         await onSave(new FormData(ev.target));
+        await formDraft?.clear();
         $("dialog").close();
         await load();
         render();
@@ -715,6 +737,49 @@ export function createPortal({
     };
     $("modal-body").onchange = null;
     $("modal-body").onclick = click;
+  }
+  function importCallsignsModal() {
+    let csv = "",
+      previewReady = false;
+    modal(
+      "Roepnummers importeren",
+      `<p>Upload een CSV met de kolommen <strong>Roepnummer</strong> en <strong>Rang</strong>. Gebruik de rangnaam of nummerreeks. Bestaande nummers en toewijzingen blijven behouden. Maximaal 500 regels, 90 kB.</p><label class="field">CSV-bestand<input id="callsign-csv" type="file" accept=".csv,text/csv" required></label><div id="csv-preview" aria-live="polite"></div>`,
+      async () => {
+        if (!previewReady)
+          throw Error(
+            "Kies eerst een geldig CSV-bestand en controleer het voorbeeld.",
+          );
+        const result = await api("/api/callsigns/import", {
+          method: "POST",
+          body: { csv },
+        });
+        toast(`${result.imported} roepnummers geïmporteerd.`);
+      },
+      { button: "Importeren" },
+    );
+    $("modal-save").disabled = true;
+    $("callsign-csv").onchange = async (event) => {
+      previewReady = false;
+      $("modal-save").disabled = true;
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        if (file.size > 90000) throw Error("Kies een CSV van maximaal 90 kB.");
+        csv = await file.text();
+        const preview = await api("/api/callsigns/import/preview", {
+          method: "POST",
+          body: { csv },
+        });
+        $("csv-preview").innerHTML =
+          `<p>${preview.valid} geldig · ${preview.invalid} met fouten. Er wordt pas geïmporteerd als alle regels geldig zijn.</p><div class="table-scroll csv-preview"><table><thead><tr><th>Regel</th><th>Roepnummer</th><th>Rang</th><th>Controle</th></tr></thead><tbody>${preview.rows.map((r) => `<tr><td>${r.line}</td><td>${e(r.number)}</td><td>${e(r.rank)}</td><td>${e(r.error || "Geldig")}</td></tr>`).join("")}</tbody></table></div>`;
+        previewReady = !preview.invalid;
+        $("modal-save").disabled = !previewReady;
+        $("modal-error").textContent = "";
+      } catch (error) {
+        $("modal-error").textContent = error.message;
+        $("csv-preview").textContent = "";
+      }
+    };
   }
   const freeNumbers = (rankId, currentId) => [
     { id: "", label: "Geen roepnummer" },
@@ -1065,6 +1130,7 @@ export function createPortal({
           "Deze rang en alle vrije roepnummers verwijderen? Dit kan alleen als er geen personeel aan is gekoppeld.",
         );
       if (a === "export") location.assign("/api/callsigns.csv");
+      if (a === "import-callsigns") importCallsignsModal();
       if (a === "add-archive") archiveForm();
       if (a === "edit-archive") {
         const row = data.archive.find((x) => x.id === key);
@@ -1185,6 +1251,36 @@ export function createPortal({
       tab = initial;
       await load();
       render();
+    },
+    async refresh() {
+      if ($("dialog").open || $("app-body").querySelector("form")) return false;
+      await load();
+      render();
+      return true;
+    },
+    async navigateSearch(result) {
+      const permitted = routes.find(
+        (route) =>
+          route.id === result.action &&
+          me.permissions[route.right] &&
+          route.section === section,
+      );
+      if (!permitted) return;
+      tab = result.action;
+      query = result.title || "";
+      rankFilter = "";
+      statusFilter = "";
+      await load();
+      render();
+    },
+    destroy() {
+      formDraft?.destroy();
+      formDraft = null;
+      const root = $("app-body");
+      root.onclick = null;
+      root.oninput = null;
+      root.onchange = null;
+      root.onsubmit = null;
     },
   };
 }

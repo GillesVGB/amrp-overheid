@@ -35,6 +35,8 @@ import {
   normalizeAccountAccess,
 } from "./security.mjs";
 import { createDiscordSync } from "./discord-sync.mjs";
+import { previewCallsignImport, importCallsigns } from "./callsign-import.mjs";
+import { installWorkspace } from "./workspace.mjs";
 const publicDir = fileURLToPath(new URL("../public/", import.meta.url));
 export async function createApp(config, options = {}) {
   const db = options.db || openDatabase(config),
@@ -53,6 +55,7 @@ export async function createApp(config, options = {}) {
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],
           frameAncestors: ["'none'"],
+          frameSrc: ["'self'"],
           baseUri: ["'none'"],
           formAction: ["'self'"],
           upgradeInsecureRequests: config.production ? [] : null,
@@ -109,6 +112,19 @@ export async function createApp(config, options = {}) {
   });
   const p = (name) => [auth.auth, auth.permit(name)];
   const w = (name) => [auth.auth, auth.csrf, auth.permit(name)];
+  app.get("/api/changes", auth.auth, (req, res) => {
+    requireValue(
+      !req.auth.user.must_change,
+      403,
+      "Wijzig eerst je tijdelijke wachtwoord.",
+    );
+    res.json({
+      revision: String(
+        options.getRevision?.() ??
+          db.prepare("SELECT COALESCE(MAX(id),0) value FROM audit").get().value,
+      ),
+    });
+  });
   app.get("/api/preferences", auth.auth, (req, res) => {
     const saved = db
       .prepare("SELECT wallpaper FROM user_preferences WHERE user_id=?")
@@ -299,6 +315,12 @@ export async function createApp(config, options = {}) {
     });
     res.json({ ok: true });
   });
+  app.post("/api/callsigns/import/preview", ...w("policeWrite"), (req, res) =>
+    res.json(previewCallsignImport(db, req.body.csv)),
+  );
+  app.post("/api/callsigns/import", ...w("policeWrite"), (req, res) =>
+    res.status(201).json(importCallsigns(db, req.auth.user, req.body.csv)),
+  );
   app.post("/api/callsigns", ...w("policeWrite"), (req, res) =>
     res.status(201).json({ id: saveCallsign(db, req.auth.user, req.body) }),
   );
@@ -874,6 +896,7 @@ export async function createApp(config, options = {}) {
     });
     res.json({ ok: true });
   });
+  installWorkspace(app, { db, config, auth, archiveFiles });
   app.use("/api", (req, res) =>
     res.status(404).json({ error: "Dit API-adres bestaat niet." }),
   );

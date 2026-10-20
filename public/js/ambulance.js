@@ -1,5 +1,6 @@
 import { icon } from "./icons.js";
 import { escapeHtml as e } from "./politie.js";
+import { bindDraft } from "./drafts.js";
 
 const statuses = [
   "Nieuw",
@@ -16,7 +17,10 @@ const date = (value) =>
 
 export function createAmbulance({ api, me, toast }) {
   const root = document.getElementById("app-body");
-  let calls = [];
+  let calls = [],
+    draft = null,
+    editing = false,
+    destroyed = false;
 
   function callCard(call) {
     const closed = call.status === "Afgerond";
@@ -33,6 +37,8 @@ export function createAmbulance({ api, me, toast }) {
   }
 
   function render() {
+    draft?.destroy();
+    editing = false;
     const open = calls.filter((call) => call.status !== "Afgerond");
     const completed = calls.filter((call) => call.status === "Afgerond");
     root.innerHTML = `<div class="ambulance-workspace">
@@ -43,6 +49,17 @@ export function createAmbulance({ api, me, toast }) {
       <div class="security-note">${icon("lock")} Alleen accounts met de juiste dienst- of beheerdersrechten kunnen meldingen bekijken en wijzigen. Wijzigingen worden geregistreerd in het activiteitenlog.</div>
     </div>`;
 
+    draft = bindDraft(
+      root.querySelector("#ambulance-create-form"),
+      "ambulance-new-call",
+      { api, userId: me.user.id },
+    );
+    root.oninput = () => {
+      editing = true;
+    };
+    root.onchange = () => {
+      editing = true;
+    };
     root
       .querySelector("#ambulance-create-form")
       .addEventListener("submit", async (event) => {
@@ -54,6 +71,7 @@ export function createAmbulance({ api, me, toast }) {
             method: "POST",
             body: Object.fromEntries(new FormData(event.currentTarget)),
           });
+          await draft.clear();
           toast("De ambulance-melding is aangemaakt.");
           await load();
         } catch (error) {
@@ -99,11 +117,25 @@ export function createAmbulance({ api, me, toast }) {
   async function load() {
     try {
       calls = (await api("/api/ambulance/calls")).calls;
+      if (destroyed) return;
       render();
     } catch (error) {
       toast(error.message, true);
     }
   }
 
-  return { open: load };
+  return {
+    open: load,
+    async refresh() {
+      if (editing || draft?.dirty) return false;
+      await load();
+      return true;
+    },
+    destroy() {
+      destroyed = true;
+      draft?.destroy();
+      root.oninput = null;
+      root.onchange = null;
+    },
+  };
 }
