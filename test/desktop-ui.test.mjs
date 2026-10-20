@@ -117,11 +117,14 @@ test("Aanmeldscherm gebruikt Discord, toont Amsterdam wifi en sluit met een veil
 test("Aparte appvensters blijven bestaan bij wisselen, minimaliseren, maximaliseren en dupliceren", (t) => {
   const ui = browser(t, '<html><body><main id="desktop"></main></body></html>');
   let logout = 0;
+  const changed = [];
   const focused = [];
   const manager = createWindows({
     host: ui.document.getElementById("desktop"),
     onFocus: (id) => focused.push(id),
     onLogout: () => logout++,
+    getAppearance: () => ({ theme: "dark", wallpaper: "amsterdamrp" }),
+    onAppearance: (value) => changed.push(value),
     toast: () => {},
   });
   const files = { id: "files", label: "Verkenner", icon: "folder" },
@@ -156,6 +159,27 @@ test("Aparte appvensters blijven bestaan bij wisselen, minimaliseren, maximalise
     source = { postMessage: (message) => received.push(message) };
   Object.defineProperty(frame, "contentWindow", { value: source });
   ui.message({ type: "amrp-ready" }, source);
+  assert.ok(
+    received.some(
+      (x) => x.type === "amrp-appearance" && x.appearance.theme === "dark",
+    ),
+  );
+  ui.message(
+    { type: "amrp-appearance", appearance: { theme: "light" } },
+    {},
+    "https://evil.test",
+  );
+  assert.equal(changed.length, 0);
+  ui.message(
+    {
+      type: "amrp-appearance",
+      appearance: { theme: "light", wallpaper: "classic" },
+    },
+    source,
+  );
+  assert.equal(changed[0].theme, "light");
+  manager.broadcastAppearance({ theme: "light", wallpaper: "classic" });
+  assert.equal(received.at(-1).appearance.wallpaper, "classic");
   ui.message({ type: "amrp-logout" }, source);
   assert.equal(logout, 1);
   manager.open(files, { navigate: { action: "files", id: "test-doc" } });
@@ -241,4 +265,111 @@ test("Na aanmelden blijft het bureaublad leeg totdat een afzonderlijke app wordt
   assert.ok(
     ui.document.querySelector('link[rel="icon"][href^="/favicon.svg"]'),
   );
+});
+
+test("Persoonlijke instellingen slaan het zwarte thema en de nieuwe foto op en verwerken wijzigingen vanuit het bureaublad", async (t) => {
+  const ui = browser(
+    t,
+    fs.readFileSync(new URL("../public/index.html", import.meta.url), "utf8"),
+  );
+  location.search = "?window=1&app=personal";
+  const messages = [],
+    calls = [],
+    timers = [];
+  const schedule = globalThis.setTimeout;
+  const parentWindow = { postMessage: (message) => messages.push(message) };
+  const originals = new Map(
+    ["parent", "setInterval", "setTimeout", "fetch"].map((key) => [
+      key,
+      Object.getOwnPropertyDescriptor(globalThis, key),
+    ]),
+  );
+  Object.defineProperty(globalThis, "parent", {
+    value: parentWindow,
+    writable: true,
+    configurable: true,
+  });
+  globalThis.setInterval = () => 0;
+  globalThis.setTimeout = (...args) => {
+    const timer = schedule(...args);
+    timers.push(timer);
+    return timer;
+  };
+  let preference = { theme: "light", wallpaper: "bloom" };
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === "/api/preferences") {
+      if (options.method === "PUT") {
+        const change = JSON.parse(options.body);
+        calls.push(change);
+        preference = { ...preference, ...change };
+      }
+      return Response.json(preference);
+    }
+    return Response.json({
+      user: {
+        id: "personal",
+        username: "personal",
+        discordId: "990000000000000001",
+        mustChange: false,
+      },
+      csrf: "test-csrf",
+      discordName: "Personal",
+      permissions: { policeRead: true },
+      settings: { name: "Amsterdam" },
+    });
+  };
+  t.after(() => {
+    timers.forEach(clearTimeout);
+    for (const [key, descriptor] of originals)
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
+  });
+  await import("../public/js/desktop.js?personal-appearance-test");
+  assert.ok(messages.some((x) => x.type === "amrp-ready"));
+  const dark = ui.document.querySelector('button[data-theme="dark"]');
+  assert.ok(dark);
+  ui.click(dark.querySelector("strong"));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(ui.document.documentElement.dataset.theme, "dark");
+  assert.equal(dark.getAttribute("aria-pressed"), "true");
+  assert.equal(localStorage.getItem("amrp-theme"), "dark");
+  const wallpaper = ui.document.querySelector(
+    'button[data-wallpaper="amsterdamrp"]',
+  );
+  ui.click(wallpaper);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(
+    ui.document.querySelector(".wallpaper").dataset.wallpaper,
+    "amsterdamrp",
+  );
+  assert.equal(ui.document.documentElement.dataset.theme, "dark");
+  assert.deepEqual(calls, [{ theme: "dark" }, { wallpaper: "amsterdamrp" }]);
+  assert.ok(
+    messages.some(
+      (x) =>
+        x.type === "amrp-appearance" &&
+        x.appearance.wallpaper === "amsterdamrp",
+    ),
+  );
+  const before = messages.length;
+  ui.message(
+    {
+      type: "amrp-appearance",
+      appearance: { theme: "light", wallpaper: "classic" },
+    },
+    parentWindow,
+  );
+  assert.equal(ui.document.documentElement.dataset.theme, "light");
+  assert.equal(wallpaper.getAttribute("aria-pressed"), "false");
+  assert.equal(
+    messages.length,
+    before,
+    "Parent updates must not echo back in a loop",
+  );
+  const { restoreAppearance, applyAppearance } =
+    await import("../public/js/appearance.js");
+  applyAppearance({ theme: "dark", wallpaper: "amsterdamrp" });
+  ui.document.documentElement.dataset.theme = "light";
+  restoreAppearance();
+  assert.equal(ui.document.documentElement.dataset.theme, "dark");
 });

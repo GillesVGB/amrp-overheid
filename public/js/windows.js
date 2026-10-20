@@ -5,7 +5,8 @@ export function createWindows({
   host,
   onFocus = () => {},
   onLogout = () => {},
-  onWallpaper = () => {},
+  onAppearance = () => {},
+  getAppearance = () => ({ wallpaper: "bloom", theme: "light" }),
   onSearch = () => {},
   onOpen = () => {},
   toast,
@@ -185,6 +186,7 @@ export function createWindows({
     if (!message || typeof message !== "object") return;
     if (message.type === "amrp-ready") {
       entry.ready = true;
+      post(entry, { type: "amrp-appearance", appearance: getAppearance() });
       post(entry, { type: "amrp-visibility", visible: !entry.element.hidden });
       if (entry.pending)
         post(entry, { type: "amrp-navigate", result: entry.pending });
@@ -192,7 +194,8 @@ export function createWindows({
     if (message.type === "amrp-focus" && front !== entry) focus(entry);
     if (message.type === "amrp-closed") remove(entry);
     if (message.type === "amrp-logout") onLogout(message.message);
-    if (message.type === "amrp-wallpaper") onWallpaper(message.wallpaper);
+    if (message.type === "amrp-appearance" && message.appearance)
+      onAppearance(message.appearance);
     if (message.type === "amrp-search") onSearch();
     if (message.type === "amrp-open" && typeof message.appId === "string")
       onOpen(message.appId);
@@ -217,6 +220,10 @@ export function createWindows({
   });
   return {
     open,
+    broadcastAppearance(appearance) {
+      for (const entry of windows.values())
+        if (entry.ready) post(entry, { type: "amrp-appearance", appearance });
+    },
     count(appId) {
       return [...windows.values()].filter((x) => x.app.id === appId).length;
     },

@@ -24,7 +24,7 @@ export function openDatabase(config) {
  CREATE TABLE IF NOT EXISTS auth_flows(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,expires_at INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS signup_flows(hash TEXT PRIMARY KEY,username TEXT NOT NULL,expires_at INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS discord_login_flows(hash TEXT PRIMARY KEY,verifier TEXT NOT NULL,expires_at INTEGER NOT NULL);
- CREATE TABLE IF NOT EXISTS user_preferences(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,wallpaper TEXT NOT NULL DEFAULT 'bloom',updated_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS user_preferences(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,wallpaper TEXT NOT NULL DEFAULT 'bloom',theme TEXT NOT NULL DEFAULT 'light',updated_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS deleted_callsigns(id TEXT PRIMARY KEY,snapshot TEXT NOT NULL,deleted_by TEXT NOT NULL,deleted_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS rate_limits(key TEXT PRIMARY KEY,count INTEGER NOT NULL,expires_at INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS ranks(id TEXT PRIMARY KEY,code TEXT NOT NULL UNIQUE,label TEXT NOT NULL,capacity INTEGER NOT NULL,special INTEGER NOT NULL,position INTEGER NOT NULL);
@@ -38,6 +38,15 @@ export function openDatabase(config) {
  CREATE INDEX IF NOT EXISTS audit_date ON audit(created_at);
  CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
  `);
+  if (
+    !db
+      .prepare("PRAGMA table_info(user_preferences)")
+      .all()
+      .some((x) => x.name === "theme")
+  )
+    db.exec(
+      "ALTER TABLE user_preferences ADD COLUMN theme TEXT NOT NULL DEFAULT 'light'",
+    );
   if (
     !db
       .prepare("PRAGMA table_info(ranks)")

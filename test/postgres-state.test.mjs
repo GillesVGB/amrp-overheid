@@ -287,3 +287,64 @@ test("simultaneous requests serialize against committed relational state", async
     local.close();
   }
 });
+
+test("existing account wallpaper survives the theme-column migration and personal appearance persists in PostgreSQL", async () => {
+  const local = fixture(),
+    pool = createPool();
+  const run = (callback) =>
+    withPostgresPortalState(local.config, callback, { pool });
+  try {
+    await run((db) => {
+      db.prepare(
+        "INSERT INTO users(id,username,discord_id,password_hash,created_at) VALUES(?,?,?,?,?)",
+      ).run(
+        "personal",
+        "personal",
+        "990000000000000001",
+        "existing-hash",
+        "2026-01-01",
+      );
+      db.prepare(
+        "INSERT INTO user_preferences(user_id,wallpaper,updated_at) VALUES(?,?,?)",
+      ).run("personal", "amsterdam", "2026-01-01");
+    });
+    // Simulate the deployed schema before personal themes were introduced.
+    const stored = pool.state.meta.sqlite_schema.find(
+      (entry) => entry.name === "user_preferences",
+    );
+    stored.sql = stored.sql.replace(",theme TEXT NOT NULL DEFAULT 'light'", "");
+    for (const row of pool.state.rows.user_preferences) delete row.theme;
+    const revision = pool.state.meta.revision;
+    await run((db) => {
+      const preference = db
+        .prepare(
+          "SELECT wallpaper,theme FROM user_preferences WHERE user_id='personal'",
+        )
+        .get();
+      assert.equal(preference.wallpaper, "amsterdam");
+      assert.equal(preference.theme, "light");
+      db.prepare(
+        "UPDATE user_preferences SET wallpaper='amsterdamrp',theme='dark' WHERE user_id='personal'",
+      ).run();
+    });
+    assert.equal(pool.state.meta.revision, revision);
+    assert.ok(
+      pool.queries.some((sql) =>
+        sql.includes(
+          'ALTER TABLE "public"."user_preferences" ADD COLUMN IF NOT EXISTS "theme"',
+        ),
+      ),
+    );
+    await run((db) => {
+      const preference = db
+        .prepare(
+          "SELECT wallpaper,theme FROM user_preferences WHERE user_id='personal'",
+        )
+        .get();
+      assert.equal(preference.wallpaper, "amsterdamrp");
+      assert.equal(preference.theme, "dark");
+    });
+  } finally {
+    local.close();
+  }
+});

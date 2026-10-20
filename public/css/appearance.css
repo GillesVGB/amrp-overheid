@@ -1,0 +1,556 @@
+:root {
+  color-scheme: light;
+  --text: #172b44;
+  --muted: #61748d;
+  --line: #dce3ec;
+}
+.wallpaper[data-wallpaper="amsterdamrp"],
+.wallpaper-amsterdamrp {
+  background: #07315c url("/images/amsterdam-roleplay.png") center / cover
+    no-repeat;
+}
+.appearance-section {
+  margin-top: 30px;
+}
+.appearance-section h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 7px;
+}
+.appearance-section > p {
+  margin: 0;
+  font-size: 13px;
+}
+.theme-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(140px, 230px));
+  gap: 14px;
+  margin-top: 18px;
+}
+.theme-choice,
+.wallpaper-choice {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 11px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+}
+.theme-choice small,
+.wallpaper-choice small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.theme-choice strong,
+.wallpaper-choice strong {
+  font-size: 13px;
+}
+.theme-choice.selected,
+.wallpaper-choice.selected {
+  border-color: #087ddd;
+  box-shadow: 0 0 0 2px #087ddd30;
+}
+.theme-choice:hover,
+.wallpaper-choice:hover {
+  border-color: #709fc8;
+}
+.theme-choice:focus-visible,
+.wallpaper-choice:focus-visible {
+  outline: 2px solid #1686dc;
+  outline-offset: 3px;
+}
+.theme-choice:disabled,
+.wallpaper-choice:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.theme-preview {
+  display: grid;
+  grid-template-columns: 24% 1fr;
+  grid-template-rows: 22px 1fr;
+  height: 94px;
+  gap: 7px;
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #d8dce4;
+  background: #f0f3f8;
+}
+.theme-preview i {
+  display: block;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: 0 1px 3px #0001;
+}
+.theme-preview i:first-child {
+  grid-column: 1 / -1;
+  background: #d6e5f5;
+}
+.theme-preview i:nth-child(2) {
+  background: #e2e7ef;
+}
+.theme-dark {
+  border-color: #424242;
+  background: #111;
+}
+.theme-dark i {
+  background: #292929;
+}
+.theme-dark i:first-child {
+  background: #343434;
+}
+.theme-dark i:nth-child(2) {
+  background: #202020;
+}
+.appearance-check {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  top: 16px;
+  right: 16px;
+  width: 23px;
+  height: 23px;
+  background: #087ddd;
+  color: #fff;
+  border-radius: 50%;
+}
+.appearance-check:empty {
+  display: none;
+}
+.appearance-check .icon {
+  width: 15px;
+  height: 15px;
+}
+.appearance-saved {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 24px !important;
+  font-size: 11px !important;
+}
+.appearance-saved .icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* A personal Windows appearance; service branding and status colours stay distinct. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --text: #f1f1f1;
+  --muted: #b4b4b4;
+  --line: #3b3b3b;
+  --surface: #242424;
+  --canvas: #191919;
+}
+:root[data-theme="dark"] body {
+  background: #101010;
+  color: var(--text);
+}
+:root[data-theme="dark"]
+  :is(
+    .app-window,
+    .managed-window,
+    .managed-window iframe,
+    .portal-main,
+    .explorer,
+    .ambulance-workspace,
+    .app-window-embedded .loading-screen
+  ) {
+  background: var(--canvas);
+  color: var(--text);
+  border-color: var(--line);
+}
+:root[data-theme="dark"]
+  :is(
+    .window-titlebar,
+    .managed-titlebar,
+    .is-focused > .managed-titlebar,
+    .portal-topbar
+  ) {
+  background: #262626;
+  color: var(--text);
+  border-color: var(--line);
+}
+:root[data-theme="dark"] .managed-window.is-focused {
+  border-color: #606060;
+}
+:root[data-theme="dark"]
+  :is(
+    .window-titlebar > span,
+    .breadcrumb strong,
+    .portal-user,
+    .panel-heading h2,
+    .page-heading h1,
+    .stat-card > strong,
+    .mini-rank > strong,
+    .activity-row strong,
+    .person-cell strong,
+    .sheet-title strong,
+    .archive-card h3,
+    .settings-section h3,
+    .empty-state strong,
+    .explorer h1,
+    .explorer-apps strong,
+    .help-list dd,
+    .ambulance-call h3
+  ) {
+  color: var(--text);
+}
+:root[data-theme="dark"]
+  :is(
+    .panel,
+    .stat-card,
+    .archive-card,
+    .sheet-section,
+    .settings-section,
+    .ambulance-call,
+    .explorer-apps > button,
+    .category-row,
+    .access-scope,
+    .theme-choice,
+    .wallpaper-choice
+  ) {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--line);
+}
+:root[data-theme="dark"]
+  :is(
+    .panel-heading,
+    .mini-rank,
+    .activity-row,
+    .toolbar,
+    .sheet-title,
+    .settings-form > footer,
+    .ambulance-call-edit,
+    .ambulance-completed
+  ) {
+  border-color: var(--line);
+}
+:root[data-theme="dark"]
+  :is(
+    .page-heading p,
+    .panel-heading p,
+    .explorer p,
+    .stat-card > span,
+    .stat-card > small,
+    .activity-row small,
+    .person-cell small,
+    .field,
+    .field small,
+    .help-list dt,
+    .archive-card p,
+    .archive-card small,
+    .settings-section > p,
+    .empty-state,
+    .empty-state p,
+    .panel-note,
+    .permission-muted,
+    .ambulance-call > p,
+    .ambulance-call-meta,
+    .ambulance-call-edit label,
+    .ambulance-privacy,
+    .form-draft-status
+  ) {
+  color: var(--muted);
+}
+:root[data-theme="dark"] :is(.police-sidebar, .mobile-nav) {
+  background: #151515;
+  border-color: var(--line);
+}
+:root[data-theme="dark"] .police-nav button {
+  color: #c5c5c5;
+}
+:root[data-theme="dark"] .police-nav button:is(:hover, .active) {
+  background: #353535;
+  color: #fff;
+}
+:root[data-theme="dark"] .taskbar {
+  background: #181818ed;
+  color: #eee;
+  border-color: #ffffff19;
+}
+:root[data-theme="dark"] :is(.taskbar-search, .start-search, .search-control) {
+  background: #303030;
+  border-color: #505050;
+  color: #eee;
+}
+:root[data-theme="dark"]
+  :is(.taskbar-search input, .start-search input, .search-control input) {
+  color: #f2f2f2;
+}
+:root[data-theme="dark"] :is(.taskbar-search .icon, .start-search > .icon) {
+  color: #ccc;
+}
+:root[data-theme="dark"]
+  :is(.start-button, .system-tray button, .pinned-apps button):hover {
+  background: #ffffff18;
+}
+:root[data-theme="dark"] :is(.start-menu, .quick-settings) {
+  background: #242424f5;
+  color: #eee;
+  border-color: #484848;
+}
+:root[data-theme="dark"]
+  :is(
+    .start-section-heading > strong,
+    .start-app-grid button,
+    .start-footer button,
+    .start-footer button .icon,
+    .quick-status-card strong
+  ) {
+  color: #eee;
+}
+:root[data-theme="dark"]
+  :is(
+    .start-section-heading > span,
+    .start-recommended small,
+    .quick-status-card small,
+    .quick-settings-footer
+  ) {
+  color: #b4b4b4;
+}
+:root[data-theme="dark"] .start-footer {
+  background: #1b1b1bbf;
+  border-color: #444;
+}
+:root[data-theme="dark"]
+  :is(
+    .start-app-grid button:hover,
+    .start-footer button:hover,
+    .quick-status-card,
+    .archive-card:hover
+  ) {
+  background: #383838;
+}
+:root[data-theme="dark"]
+  :is(
+    .button.secondary,
+    .toolbar select,
+    .audit-date-filter input,
+    .field input,
+    .field select,
+    .field textarea,
+    .ambulance-call-edit input,
+    .ambulance-call-edit select
+  ) {
+  background: #171717;
+  color: #eee;
+  border-color: #505050;
+}
+:root[data-theme="dark"] :is(input, textarea)::placeholder {
+  color: #a3a3a3;
+}
+:root[data-theme="dark"]
+  :is(.button.primary, .ws-shell .ws-primary, .ws-dialog .ws-primary) {
+  background: #69baff;
+  border-color: #69baff;
+  color: #071b2d;
+}
+:root[data-theme="dark"]
+  :is(.button.primary, .ws-shell .ws-primary, .ws-dialog .ws-primary):hover {
+  background: #91cbff;
+}
+:root[data-theme="dark"] .ws-primary .icon {
+  color: inherit;
+}
+:root[data-theme="dark"]
+  :is(
+    .button.danger,
+    .icon-button.danger,
+    .ws-shell .ws-danger,
+    .ws-dialog .ws-danger
+  ) {
+  color: #ff9a9a;
+}
+:root[data-theme="dark"] :is(.icon-button:hover, .button.secondary:hover) {
+  background: #3a3a3a;
+  color: #fff;
+}
+:root[data-theme="dark"]
+  :is(
+    .rank-tag,
+    .permission-chip,
+    .security-note,
+    .read-only-tag,
+    .access-scope:has(input:checked),
+    .ws-review-note,
+    .ws-template-fields
+  ) {
+  background: #233342;
+  color: #b9dcff;
+  border-color: #3d5369;
+}
+:root[data-theme="dark"] :is(th, .ws-section > .ws-table-scroll .ws-table th) {
+  background: #202020;
+  color: #c1c1c1;
+  border-color: #414141;
+}
+:root[data-theme="dark"] :is(td, .ws-table td) {
+  color: #dedede;
+  border-color: #353535;
+}
+:root[data-theme="dark"]
+  :is(tbody tr:hover, .ws-table tbody tr[data-ws]:hover) {
+  background: #303030;
+}
+:root[data-theme="dark"]
+  :is(.ws-table tbody tr.selected, .ws-file-tile.selected) {
+  background: #214367;
+  border-color: #537ea8;
+}
+:root[data-theme="dark"] :is(.tag, .status-badge, .priority-badge, .ws-pill) {
+  background: #354150;
+  color: #d3e5fa;
+}
+:root[data-theme="dark"] :is(.tag.active, .tag.free, .ws-pill.approved) {
+  background: #193b30;
+  color: #8cddb4;
+}
+:root[data-theme="dark"]
+  :is(.tag.inactive, .priority-badge.urgent, .ws-pill.rejected) {
+  background: #482628;
+  color: #ffafad;
+}
+:root[data-theme="dark"] .ws-pill.pending {
+  background: #493d23;
+  color: #f3d385;
+}
+:root[data-theme="dark"] :is(dialog, .ws-dialog) {
+  background: #242424;
+  color: #eee;
+  border-color: #505050;
+}
+:root[data-theme="dark"]
+  :is(dialog header, dialog footer, .ws-request footer, .ws-statusbar) {
+  border-color: #414141;
+}
+:root[data-theme="dark"] :is(dialog footer, .ws-dialog-footer) {
+  background: #1c1c1c;
+}
+:root[data-theme="dark"]
+  :is(dialog h2, #modal-body .field, .ws-field, .ws-document-paper h1) {
+  color: #eee;
+}
+:root[data-theme="dark"] :is(#modal-error, .ws-form-error) {
+  color: #ffadad;
+}
+:root[data-theme="dark"] :is(.ws-form-error, .ws-error) {
+  background: #402626;
+  border-color: #724444;
+  color: #ffb8ad;
+}
+:root[data-theme="dark"] :is(.ws-shell, .ws-dialog) {
+  --ws-line: #3b3b3b;
+  --ws-muted: #b4b4b4;
+  --ws-accent: #69baff;
+}
+:root[data-theme="dark"] .ws-shell {
+  background: #191919;
+  color: #eee;
+}
+:root[data-theme="dark"] :is(.ws-sidebar, .ws-details, .ws-page-heading) {
+  background: #222;
+  color: #eee;
+  border-color: #3b3b3b;
+}
+:root[data-theme="dark"]
+  :is(
+    .ws-inner-content,
+    .ws-search,
+    .ws-address,
+    .ws-field input,
+    .ws-field select,
+    .ws-field textarea
+  ) {
+  background: #171717;
+  color: #eee;
+  border-color: #505050;
+}
+:root[data-theme="dark"]
+  :is(
+    .ws-course,
+    .ws-request,
+    .ws-section > .ws-table-scroll,
+    .ws-template-list > button,
+    .ws-document-paper,
+    .ws-details-actions button,
+    .ws-details-actions a,
+    .ws-dialog-footer > button,
+    .ws-dialog-footer > a
+  ) {
+  background: #282828;
+  color: #eee;
+  border-color: #414141;
+}
+:root[data-theme="dark"]
+  :is(
+    .ws-sidebar nav button.active,
+    .ws-shell button:hover,
+    .ws-dialog button:hover,
+    .ws-shell a:hover,
+    .ws-dialog a:hover
+  ) {
+  background: #3b3b3b;
+}
+:root[data-theme="dark"] :is(.ws-search input, .ws-table, .ws-empty strong) {
+  color: #eee;
+}
+:root[data-theme="dark"]
+  :is(
+    .ws-course-meta,
+    .ws-template-list small,
+    .ws-intro,
+    .ws-draft-state,
+    .ws-document-fields dt,
+    .ws-sidebar-bottom small
+  ) {
+  color: #b4b4b4;
+}
+:root[data-theme="dark"]
+  :is(
+    .ws-address > .icon,
+    .ws-command-group .icon,
+    .ws-sidebar nav button .icon
+  ) {
+  color: #afd6fa;
+}
+:root[data-theme="dark"] .ws-drop-overlay {
+  background: #162c43ed;
+  color: #d1e8ff;
+}
+:root[data-theme="dark"] .ws-dialog-footer .ws-delete-confirm {
+  background: #a82c2c;
+  color: white;
+}
+:root[data-theme="dark"] .ws-dialog-footer .ws-primary {
+  background: #69baff;
+  color: #071b2d;
+  border-color: #69baff;
+}
+:root[data-theme="dark"]
+  :is(.ws-shell .ws-primary:hover, .ws-dialog .ws-primary:hover) {
+  background: #91cbff;
+}
+:root[data-theme="dark"] body:has(#login) .login-center input,
+:root[data-theme="dark"] body:has(#login) .password-input input {
+  background: #171717dc;
+  color: #fff;
+}
+:root[data-theme="dark"] :is(.login-flyout, .login-closed) {
+  background: #202020f5;
+  color: #eee;
+  border-color: #555;
+}
+@media (max-width: 520px) {
+  .theme-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .wallpaper-choices {
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  }
+}

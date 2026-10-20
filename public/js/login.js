@@ -1,12 +1,11 @@
 import { icon } from "./icons.js";
 import { createApi } from "./api.js";
+import { restoreAppearance } from "./appearance.js";
 const $ = (id) => document.getElementById(id),
   api = createApi();
 let checking = false;
+restoreAppearance();
 try {
-  const wallpaper = localStorage.getItem("amrp-wallpaper");
-  if (["bloom", "classic", "midnight", "amsterdam"].includes(wallpaper))
-    document.querySelector(".wallpaper").dataset.wallpaper = wallpaper;
   const name = localStorage.getItem("amrp-last-username");
   if (name) {
     $("default-account-name").textContent = name;

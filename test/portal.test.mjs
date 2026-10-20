@@ -143,7 +143,7 @@ test("Volledige werkplek: login, rollen, opslag, archief en accountbeheer", asyn
     assert.ok(decrypt(raw, config.key).demoId);
   });
   await t.test(
-    "Persoonlijke achtergrondinstellingen volgen het account",
+    "Thema en achtergrond blijven apart bewaard per account en na opnieuw aanmelden",
     async () => {
       assert.equal((await anon.request("/api/preferences")).status, 401);
       assert.equal(
@@ -165,6 +165,57 @@ test("Volledige werkplek: login, rollen, opslag, archief en accountbeheer", asyn
           .get("agent").wallpaper,
         "midnight",
       );
+      assert.deepEqual(
+        (
+          await agent.request("/api/preferences", {
+            method: "PUT",
+            body: { theme: "dark" },
+          })
+        ).data,
+        { wallpaper: "midnight", theme: "dark" },
+      );
+      assert.deepEqual(
+        (
+          await agent.request("/api/preferences", {
+            method: "PUT",
+            body: { wallpaper: "amsterdamrp" },
+          })
+        ).data,
+        { wallpaper: "amsterdamrp", theme: "dark" },
+      );
+      assert.deepEqual((await owner.request("/api/preferences")).data, {
+        wallpaper: "bloom",
+        theme: "light",
+      });
+      const anotherDevice = client();
+      await anotherDevice.login("agent");
+      assert.deepEqual((await anotherDevice.request("/api/preferences")).data, {
+        wallpaper: "amsterdamrp",
+        theme: "dark",
+      });
+      assert.equal(
+        (
+          await agent.request("/api/preferences", {
+            method: "PUT",
+            body: { theme: "injected" },
+          })
+        ).status,
+        400,
+      );
+      assert.equal(
+        (
+          await agent.request("/api/preferences", {
+            method: "PUT",
+            body: { theme: "light" },
+            token: "invalid",
+          })
+        ).status,
+        403,
+      );
+      assert.deepEqual((await agent.request("/api/preferences")).data, {
+        wallpaper: "amsterdamrp",
+        theme: "dark",
+      });
       assert.equal(
         (
           await agent.request("/api/preferences", {
@@ -857,9 +908,7 @@ test("Discord-controle herstelt van rate limits en hergebruikt recente rollen", 
     body: {},
   });
   assert.equal(login.status, 200);
-  const state = new URL(login.data.oauthUrl).searchParams.get(
-    "state",
-  );
+  const state = new URL(login.data.oauthUrl).searchParams.get("state");
   const callback = await send(
     "/auth/discord/callback?code=test-code&state=" + encodeURIComponent(state),
   );

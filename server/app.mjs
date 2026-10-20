@@ -128,21 +128,46 @@ export async function createApp(config, options = {}) {
   });
   app.get("/api/preferences", auth.auth, (req, res) => {
     const saved = db
-      .prepare("SELECT wallpaper FROM user_preferences WHERE user_id=?")
+      .prepare("SELECT wallpaper,theme FROM user_preferences WHERE user_id=?")
       .get(req.auth.user.id);
-    res.json({ wallpaper: saved?.wallpaper || "bloom" });
+    res.json({
+      wallpaper: saved?.wallpaper || "bloom",
+      theme: saved?.theme || "light",
+    });
   });
   app.put("/api/preferences", auth.auth, auth.csrf, (req, res) => {
-    const wallpaper = text(req.body.wallpaper, "Achtergrond", 24);
+    const saved = db
+      .prepare("SELECT wallpaper,theme FROM user_preferences WHERE user_id=?")
+      .get(req.auth.user.id);
     requireValue(
-      ["bloom", "classic", "midnight", "amsterdam"].includes(wallpaper),
+      req.body.wallpaper !== undefined || req.body.theme !== undefined,
+      400,
+      "Kies een achtergrond of thema.",
+    );
+    const wallpaper =
+      req.body.wallpaper === undefined
+        ? saved?.wallpaper || "bloom"
+        : text(req.body.wallpaper, "Achtergrond", 24);
+    const theme =
+      req.body.theme === undefined
+        ? saved?.theme || "light"
+        : text(req.body.theme, "Thema", 12);
+    requireValue(
+      ["bloom", "classic", "midnight", "amsterdam", "amsterdamrp"].includes(
+        wallpaper,
+      ),
       400,
       "Kies een beschikbare achtergrond.",
     );
+    requireValue(
+      ["light", "dark"].includes(theme),
+      400,
+      "Kies een beschikbaar thema.",
+    );
     db.prepare(
-      "INSERT INTO user_preferences(user_id,wallpaper,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET wallpaper=excluded.wallpaper,updated_at=excluded.updated_at",
-    ).run(req.auth.user.id, wallpaper, timestamp());
-    res.json({ wallpaper });
+      "INSERT INTO user_preferences(user_id,wallpaper,theme,updated_at) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET wallpaper=excluded.wallpaper,theme=excluded.theme,updated_at=excluded.updated_at",
+    ).run(req.auth.user.id, wallpaper, theme, timestamp());
+    res.json({ wallpaper, theme });
   });
   app.get("/api/ambulance/calls", ...p("ambulance"), (req, res) => {
     res.json({

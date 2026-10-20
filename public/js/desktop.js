@@ -4,6 +4,12 @@ import { createApi } from "./api.js";
 import { createAmbulance } from "./ambulance.js";
 import { createWorkspace } from "./workspace.js";
 import { createWindows } from "./windows.js";
+import {
+  wallpaperOptions,
+  themeOptions,
+  applyAppearance,
+  restoreAppearance,
+} from "./appearance.js";
 const $ = (id) => document.getElementById(id);
 const embedded =
   parent !== window &&
@@ -17,45 +23,29 @@ let me = null,
   ambulance = null,
   currentApp = null,
   toastTimer,
-  currentWallpaper = "bloom";
-const wallpaperOptions = [
-  {
-    id: "bloom",
-    label: "Windows 11 Bloom",
-    detail: "Blauwe standaardachtergrond",
-  },
-  {
-    id: "classic",
-    label: "Windows klassiek",
-    detail: "Lichtblauwe Windows-achtergrond",
-  },
-  {
-    id: "midnight",
-    label: "Middernacht",
-    detail: "Donkere achtergrond met blauwe gloed",
-  },
-  {
-    id: "amsterdam",
-    label: "Amsterdam",
-    detail: "Stedelijk blauw kleurverloop",
-  },
-];
-function setWallpaper(value) {
-  if (!wallpaperOptions.some((option) => option.id === value)) value = "bloom";
-  currentWallpaper = value;
+  currentAppearance = restoreAppearance(),
+  savingAppearance = false;
+function syncAppearanceChoices() {
+  for (const field of ["wallpaper", "theme"]) {
+    document.querySelectorAll("button[data-" + field + "]").forEach((item) => {
+      const selected = item.dataset[field] === currentAppearance[field];
+      item.classList.toggle("selected", selected);
+      item.setAttribute("aria-pressed", String(selected));
+      const check = item.querySelector(".appearance-check");
+      if (check) check.innerHTML = selected ? icon("check") : "";
+    });
+  }
+}
+function setAppearance(value, notify = true) {
+  currentAppearance = applyAppearance(value);
+  syncAppearanceChoices();
+  if (!notify) return;
   if (embedded)
     parent.postMessage(
-      { type: "amrp-wallpaper", wallpaper: value },
+      { type: "amrp-appearance", appearance: currentAppearance },
       location.origin,
     );
-  document.querySelectorAll(".wallpaper").forEach((element) => {
-    element.dataset.wallpaper = value;
-  });
-  try {
-    localStorage.setItem("amrp-wallpaper", value);
-  } catch {
-    // The server preference remains the source of truth.
-  }
+  else windowManager?.broadcastAppearance(currentAppearance);
 }
 const desktopPositionKey = "amrp-desktop-shortcuts-v1";
 function readDesktopPositions() {
@@ -341,9 +331,9 @@ async function launch(appId, navigate = null) {
     return;
   }
   if (appId === "personal") {
-    const saved = currentWallpaper;
+    const saved = currentAppearance.wallpaper;
     $("app-body").innerHTML =
-      `<div class="explorer"><span class="eyebrow">JOUW WERKPLEK</span><h1>Persoonlijke instellingen</h1><p>Kies een achtergrond voor jouw overheidswerkplek. Je keuze wordt aan jouw account gekoppeld en is ook zichtbaar op andere apparaten.</p><section class="wallpaper-choices">${wallpaperOptions.map((option) => `<button class="wallpaper-choice ${saved === option.id ? "selected" : ""}" data-wallpaper="${option.id}"><span class="wallpaper-preview wallpaper-${option.id}"></span><strong>${e(option.label)}</strong><small>${e(option.detail)}</small><span class="wallpaper-check">${saved === option.id ? icon("check") : ""}</span></button>`).join("")}</section></div>`;
+      `<div class="explorer"><span class="eyebrow">JOUW WERKPLEK</span><h1>Persoonlijke instellingen</h1><p>Maak deze werkplek van jou. Je thema en achtergrond worden bij jouw account bewaard, ook na opnieuw inloggen of op een ander apparaat.</p><section class="appearance-section" aria-labelledby="theme-heading"><h2 id="theme-heading">Kies je thema</h2><p>Licht of zwart voor je taakbalk, menu’s en applicatievensters.</p><div class="theme-choices">${themeOptions.map((option) => `<button class="theme-choice ${currentAppearance.theme === option.id ? "selected" : ""}" data-theme="${option.id}" aria-pressed="${currentAppearance.theme === option.id}"><span class="theme-preview theme-${option.id}" aria-hidden="true"><i></i><i></i><i></i></span><strong>${e(option.label)}</strong><small>${e(option.detail)}</small><span class="appearance-check">${currentAppearance.theme === option.id ? icon("check") : ""}</span></button>`).join("")}</div></section><section class="appearance-section" aria-labelledby="wallpaper-heading"><h2 id="wallpaper-heading">Kies je achtergrond</h2><p>Je achtergrond en thema kun je onafhankelijk van elkaar instellen.</p><div class="wallpaper-choices">${wallpaperOptions.map((option) => `<button class="wallpaper-choice ${saved === option.id ? "selected" : ""}" data-wallpaper="${option.id}" aria-pressed="${saved === option.id}"><span class="wallpaper-preview wallpaper-${option.id}"></span><strong>${e(option.label)}</strong><small>${e(option.detail)}</small><span class="wallpaper-check appearance-check">${saved === option.id ? icon("check") : ""}</span></button>`).join("")}</div></section><p class="appearance-saved">${icon("lock")} Persoonlijke instellingen · alleen voor jouw account</p></div>`;
     return;
   }
   if (appId === "ambulance") {
@@ -493,24 +483,34 @@ document.addEventListener("click", async (ev) => {
     else await launch(target.dataset.app);
     return;
   }
-  if (target.dataset.wallpaper) {
+  if (target.dataset.wallpaper || target.dataset.theme) {
+    if (savingAppearance) return;
+    const field = target.dataset.wallpaper ? "wallpaper" : "theme";
+    savingAppearance = true;
+    const choices = [
+      ...document.querySelectorAll(".theme-choice,.wallpaper-choice"),
+    ];
+    choices.forEach((item) => {
+      item.disabled = true;
+    });
     try {
       const result = await api("/api/preferences", {
         method: "PUT",
-        body: { wallpaper: target.dataset.wallpaper },
+        body: { [field]: target.dataset[field] },
       });
-      setWallpaper(result.wallpaper);
-      target
-        .closest(".wallpaper-choices")
-        .querySelectorAll(".wallpaper-choice")
-        .forEach((item) => {
-          item.classList.toggle("selected", item === target);
-          item.querySelector(".wallpaper-check").innerHTML =
-            item === target ? icon("check") : "";
-        });
-      toast("Je achtergrond is bijgewerkt.");
+      setAppearance(result);
+      toast(
+        field === "theme"
+          ? "Je thema is opgeslagen."
+          : "Je achtergrond is opgeslagen.",
+      );
     } catch (error) {
       toast(error.message, true);
+    } finally {
+      savingAppearance = false;
+      choices.forEach((item) => {
+        item.disabled = false;
+      });
     }
     return;
   }
@@ -781,6 +781,8 @@ if (embedded) {
     )
       return;
     const message = event.data;
+    if (message.type === "amrp-appearance" && message.appearance)
+      setAppearance(message.appearance, false);
     if (message.type === "amrp-visibility") {
       embeddedVisible = message.visible === true;
       if (embeddedVisible) checkChanges();
@@ -812,7 +814,7 @@ try {
     /* Optional display preference. */
   }
   const preference = await api("/api/preferences");
-  setWallpaper(preference.wallpaper);
+  setAppearance(preference, false);
   if (!embedded)
     windowManager = createWindows({
       host: $("desktop"),
@@ -823,10 +825,8 @@ try {
       },
       onLogout: lockScreen,
       onOpen: (appId) => launch(appId),
-      onWallpaper: (value) => {
-        if (wallpaperOptions.some((option) => option.id === value))
-          setWallpaper(value);
-      },
+      getAppearance: () => currentAppearance,
+      onAppearance: (value) => setAppearance(value),
       onSearch: () => {
         toggleStart(true);
         $("start-search-input").focus();
