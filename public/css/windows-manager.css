@@ -131,6 +131,7 @@
   inset: 0 !important;
   width: 100% !important;
   height: 100dvh !important;
+  max-width: none;
   transform: none !important;
   border: 0;
   border-radius: 0;
