@@ -301,11 +301,11 @@ export function saveCallsign(db, actor, body, existingId) {
   const rankId = before?.rank_id || text(body.rankId, "Rang", 40);
   const rank = db.prepare("SELECT * FROM ranks WHERE id=?").get(rankId);
   requireValue(rank, 400, "Rang bestaat niet.");
-  const number = text(body.number, "Roepnummer", 20);
+  const number = text(body.number, "Roepnummer", 40);
   requireValue(
-    /^[0-9]+(?:-[0-9]+)*$/.test(number),
+    !/[\p{Cc}\p{Zl}\p{Zp}]/u.test(number),
     400,
-    "Roepnummer mag alleen cijfers en streepjes bevatten.",
+    "Gebruik één regel voor het roepnummer.",
   );
   const person = body.personnelId
     ? db.prepare("SELECT * FROM personnel WHERE id=?").get(body.personnelId)

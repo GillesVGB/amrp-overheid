@@ -818,7 +818,7 @@ export function createPortal({
               rankId,
               "required",
             )
-      }${field("Roepnummer", "number", row?.number || "", "text", 'required maxlength="20" pattern="[0-9]+(-[0-9]+)*"')}${select("Toewijzen aan", "personnelId", people(rankId), row?.personnel_id || "")}${field("Plaats / standplaats", "place", row?.place || "", "text", 'maxlength="100"')}<div class="security-note">${icon("lock")} Alleen personeel met dezelfde rang kan aan deze reeks worden gekoppeld. Dubbele toewijzingen worden geweigerd.</div>`,
+      }${field("Roepnummer", "number", row?.number || "", "text", 'required maxlength="40" placeholder="[11-01 ★★★]"')}${select("Toewijzen aan", "personnelId", people(rankId), row?.personnel_id || "")}${field("Plaats / standplaats", "place", row?.place || "", "text", 'maxlength="100"')}<div class="security-note">${icon("lock")} Alleen personeel met dezelfde rang kan aan deze reeks worden gekoppeld. Dubbele toewijzingen worden geweigerd.</div>`,
       (form) =>
         api("/api/callsigns" + (row ? "/" + row.id : ""), {
           method: row ? "PUT" : "POST",
