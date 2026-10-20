@@ -1,12 +1,14 @@
 {
+  "framework": null,
+  "buildCommand": "npm run build",
   "outputDirectory": "public",
   "redirects": [
     {
       "source": "/:path*",
       "missing": [
-        { "type": "host", "value": "overheid-amrp.vercel.app" }
+        { "type": "host", "value": "overheid.amsterdamrp.nl" }
       ],
-      "destination": "https://overheid-amrp.vercel.app/:path*",
+      "destination": "https://overheid.amsterdamrp.nl/:path*",
       "permanent": true
     }
   ],
