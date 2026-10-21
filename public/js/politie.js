@@ -1,5 +1,6 @@
 import { icon } from "./icons.js";
 import { bindDraft } from "./drafts.js";
+import { nextCallsign } from "./callsigns.js";
 export const escapeHtml = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -859,6 +860,10 @@ export function createPortal({
   }
   function numberForm(row, preferredRankId = "") {
     const rankId = row?.rank_id || preferredRankId || data.ranks[0]?.id;
+    const suggestedNumber = (id) => {
+      const rank = data.ranks.find((rank) => rank.id === id);
+      return rank ? nextCallsign(data.callsigns, rank) : "";
+    };
     const people = (rank) => [
       { id: "", label: "Vrij beschikbaar" },
       ...data.personnel
@@ -883,7 +888,7 @@ export function createPortal({
               rankId,
               "required",
             )
-      }${field("Roepnummer", "number", row?.number || "", "text", 'required maxlength="40" placeholder="[11-01 ★★★]"')}${select("Toewijzen aan", "personnelId", people(rankId), row?.personnel_id || "")}${field("Plaats / standplaats", "place", row?.place || "", "text", 'maxlength="100"')}<div class="security-note">${icon("lock")} Alleen personeel met dezelfde rang kan aan deze reeks worden gekoppeld. Dubbele toewijzingen worden geweigerd.</div>`,
+      }${field("Roepnummer", "number", row?.number ?? suggestedNumber(rankId), "text", 'required maxlength="40" placeholder="[11-01 ★★★]"')}${select("Toewijzen aan", "personnelId", people(rankId), row?.personnel_id || "")}${field("Plaats / standplaats", "place", row?.place || "", "text", 'maxlength="100"')}<div class="security-note">${icon("lock")} Alleen personeel met dezelfde rang kan aan deze reeks worden gekoppeld. Dubbele toewijzingen worden geweigerd.</div>`,
       (form) =>
         api("/api/callsigns" + (row ? "/" + row.id : ""), {
           method: row ? "PUT" : "POST",
@@ -891,11 +896,14 @@ export function createPortal({
         }),
     );
     $("modal-body").onchange = (ev) => {
-      if (ev.target.name === "rankId")
+      if (ev.target.name === "rankId") {
+        $("modal-body").querySelector('[name="number"]').value =
+          suggestedNumber(ev.target.value);
         $("modal-body").querySelector('[name="personnelId"]').innerHTML =
           people(ev.target.value)
             .map((x) => `<option value="${x.id}">${e(x.label)}</option>`)
             .join("");
+      }
     };
   }
   async function rankForm(row) {
