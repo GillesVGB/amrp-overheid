@@ -38,6 +38,7 @@ import {
 import { createDiscordSync } from "./discord-sync.mjs";
 import { previewCallsignImport, importCallsigns } from "./callsign-import.mjs";
 import { installWorkspace } from "./workspace.mjs";
+import { installMeosProfile } from "./meos-profile.mjs";
 const publicDir = fileURLToPath(new URL("../public/", import.meta.url));
 export async function createApp(config, options = {}) {
   const db = options.db || openDatabase(config),
@@ -70,6 +71,7 @@ export async function createApp(config, options = {}) {
     next();
   });
   app.use(express.json({ limit: "100kb" }));
+  installMeosProfile(app, { db, config });
   const auth = authentication({ db, config, ...options });
   auth.install(app);
   const roster = createDiscordSync({

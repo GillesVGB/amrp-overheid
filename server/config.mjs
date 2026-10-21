@@ -68,6 +68,7 @@ export function configFromEnv(env = process.env) {
     clientSecret: env.DISCORD_CLIENT_SECRET || "",
     botToken: env.DISCORD_BOT_TOKEN || "",
     guildId: env.DISCORD_GUILD_ID || defaults.guildId,
+    meosProfileSecret: env.MEOS_PROFILE_SECRET || "",
     roles,
   };
   config.discordReady = Boolean(
