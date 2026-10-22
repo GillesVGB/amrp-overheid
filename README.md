@@ -68,3 +68,16 @@ npm start           # lokale server met waarden uit .env
 ```
 
 Voor lokale productie- of Docker-hosting kun je `.env.example` naar `.env` kopiëren en de Discord- en serverwaarden invullen. De map `data/` en uploads moeten dan op een blijvend volume staan. Maak periodiek een beveiligde back-up.
+# Onderhoud en maker
+
+Beheerders vinden in **Systeembeheer → Systeeminstellingen** de actie
+**Site in onderhoud plaatsen**. Vul de publieke reden in. De instelling staat
+centraal in de bestaande database en blokkeert ook API-toegang van gewone
+medewerkers. Alleen admins/eigenaars behouden toegang; via `/admin` kunnen zij
+aanmelden en met **Site weer openen** het onderhoud beëindigen. De reden blijft
+beschikbaar op `/api/site-status` voor de statuswebsite, zonder beheerderssleutel.
+
+Op het aanmeldscherm, de taakbalk en de onderhoudspagina staat **By Gilles** met
+de Discord-avatar van `960090714950225970`. De avatar wordt periodiek ververst via
+Lanyard; alleen de avatar-URL wordt aan de browser doorgegeven. Er is geen eigen
+Discord-bot of extra geheim nodig voor de footer.

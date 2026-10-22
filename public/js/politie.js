@@ -551,8 +551,8 @@ export function createPortal({
     );
   }
   function maintenanceControls() {
-    const state = data.settings.maintenance || {enabled:false,reason:''};
-    return `<form id="maintenance-form" class="panel settings-form maintenance-form"><section class="settings-section"><h3>Website in onderhoud plaatsen</h3><p>Gewone medewerkers krijgen alleen de onderhoudsmelding te zien. Alleen beheerders houden toegang tot Systeembeheer. De statuswebsite neemt de reden automatisch over.</p><div class="maintenance-state">${state.enabled ? 'Onderhoud is actief · alleen beheerders hebben toegang' : 'Het overheidsportaal is geopend'}</div><label class="field">Onderhoudsreden<textarea name="reason" rows="3" minlength="5" maxlength="500" required placeholder="Bijvoorbeeld: we werken het personeelsbeheer bij.">${e(state.reason || '')}</textarea></label></section><footer><button class="button ${state.enabled ? 'secondary' : 'primary'}" type="submit" value="save">${state.enabled ? 'Reden bijwerken' : 'Site in onderhoud plaatsen'}</button>${state.enabled ? '<button class="button primary" type="submit" value="open" formnovalidate>Site weer openen</button>' : ''}</footer></form>`;
+    const state = data.settings.maintenance || { enabled: false, reason: "" };
+    return `<form id="maintenance-form" class="panel settings-form maintenance-form"><section class="settings-section"><h3>Website in onderhoud plaatsen</h3><p>Gewone medewerkers krijgen alleen de onderhoudsmelding te zien. Alleen beheerders houden toegang tot Systeembeheer. De statuswebsite neemt de reden automatisch over.</p><div class="maintenance-state">${state.enabled ? "Onderhoud is actief · alleen beheerders hebben toegang" : "Het overheidsportaal is geopend"}</div><label class="field">Onderhoudsreden<textarea name="reason" rows="3" minlength="5" maxlength="500" required placeholder="Bijvoorbeeld: we werken het personeelsbeheer bij.">${e(state.reason || "")}</textarea></label></section><footer><button class="button ${state.enabled ? "secondary" : "primary"}" type="submit" value="save">${state.enabled ? "Reden bijwerken" : "Site in onderhoud plaatsen"}</button>${state.enabled ? '<button class="button primary" type="submit" value="open" formnovalidate>Site weer openen</button>' : ""}</footer></form>`;
   }
   function settings() {
     const s = data.settings;
@@ -560,7 +560,8 @@ export function createPortal({
       header(
         "Systeeminstellingen",
         "Configureer toegangsrollen en beschikbare overheidsdiensten.",
-      ) + maintenanceControls() +
+      ) +
+      maintenanceControls() +
       `<form id="settings-form" class="panel settings-form"><section class="settings-section"><h3>Werkplekomgeving</h3><p>Instellingen gelden direct voor alle gebruikers van dit portaal.</p>${field("Omgevingsnaam", "name", s.name, "text", 'required maxlength="80"')}</section><section class="settings-section"><h3>Discord-rollen</h3><p>Gebruik rol-ID’s. Scheid meerdere ID’s met een komma. Je eigen beheerrol moet behouden blijven.</p><div class="form-grid">${Object.entries(
         {
           admin: "Overheidsbeheerder",
@@ -1229,18 +1230,34 @@ export function createPortal({
     );
   }
   async function submitSettings(ev) {
-    if (ev.target.id === 'maintenance-form') {
+    if (ev.target.id === "maintenance-form") {
       ev.preventDefault();
-      const enabled = ev.submitter?.value !== 'open';
-      const reason = String(new FormData(ev.target).get('reason') || '');
-      const buttons = ev.target.querySelectorAll('button');
-      buttons.forEach(button => {button.disabled = true;});
+      const enabled = ev.submitter?.value !== "open";
+      const reason = String(new FormData(ev.target).get("reason") || "");
+      const buttons = ev.target.querySelectorAll("button");
+      buttons.forEach((button) => {
+        button.disabled = true;
+      });
       try {
-        await api('/api/maintenance', {method:'PUT', body:{enabled,reason}});
-        await load(); await onSettings(); render();
-        toast(enabled ? 'Onderhoud is actief. Alleen beheerders kunnen de site gebruiken.' : 'Het overheidsportaal is weer geopend.');
-      } catch (error) {toast(error.message, true);}
-      finally {buttons.forEach(button => {button.disabled = false;});}
+        await api("/api/maintenance", {
+          method: "PUT",
+          body: { enabled, reason },
+        });
+        await load();
+        await onSettings();
+        render();
+        toast(
+          enabled
+            ? "Onderhoud is actief. Alleen beheerders kunnen de site gebruiken."
+            : "Het overheidsportaal is weer geopend.",
+        );
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        buttons.forEach((button) => {
+          button.disabled = false;
+        });
+      }
       return;
     }
     if (ev.target.id !== "settings-form") return;

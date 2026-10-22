@@ -77,8 +77,12 @@ export async function createApp(config, options = {}) {
   const auth = authentication({ db, config, ...options });
   auth.install(app);
   installMaintenance(app, { db, auth });
-  const creatorProfile = createCreatorProfile({request: options.creatorRequest || fetch});
-  app.get('/api/creator', async (_req, res) => res.set('Cache-Control', 'no-store').json(await creatorProfile()));
+  const creatorProfile = createCreatorProfile({
+    request: options.creatorRequest || fetch,
+  });
+  app.get("/api/creator", async (_req, res) =>
+    res.set("Cache-Control", "no-store").json(await creatorProfile()),
+  );
   const roster = createDiscordSync({
     db,
     config,

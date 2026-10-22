@@ -15,9 +15,7 @@
     },
     {
       "source": "/:path*",
-      "has": [
-        { "type": "host", "value": "overheid-amrp.vercel.app" }
-      ],
+      "has": [{ "type": "host", "value": "overheid-amrp.vercel.app" }],
       "destination": "https://overheid.amsterdamrp.nl/:path*",
       "permanent": true
     }
@@ -32,7 +30,5 @@
       "destination": "/api/portal?__portal_route=/api/:portalPath*"
     }
   ],
-  "crons": [
-    { "path": "/api/cron/discord-sync", "schedule": "0 4 * * *" }
-  ]
+  "crons": [{ "path": "/api/cron/discord-sync", "schedule": "0 4 * * *" }]
 }

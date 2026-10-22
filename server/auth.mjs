@@ -301,7 +301,7 @@ export function authentication({
         "Je hebt geen toegangsrol voor deze omgeving.",
       );
       const maintenance = maintenanceState(db);
-      if (maintenance.enabled && !grants.admin && req.path.startsWith('/api/'))
+      if (maintenance.enabled && !grants.admin && req.path.startsWith("/api/"))
         return blockForMaintenance(req, res, maintenance);
       db.prepare("UPDATE sessions SET last_seen=?,tokens=? WHERE hash=?").run(
         clock(),
