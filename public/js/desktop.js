@@ -176,7 +176,7 @@ function apps() {
       className: "police",
       access: true,
     },
-  ].filter((x) => x.access);
+  ].filter((x) => x.access && (!me.maintenance?.enabled || x.id === 'admin'));
 }
 function homeApp() {
   return me.permissions.owner
@@ -349,6 +349,7 @@ async function launch(appId, navigate = null) {
       section: appId === "admin" ? "admin" : "police",
       onSettings: async () => {
         me = await api("/api/me");
+        windowManager?.prune(apps().map(app => app.id));
         renderDesktop();
       },
     });
@@ -399,7 +400,7 @@ async function enter() {
   if (embedded) {
     const initial = new URLSearchParams(location.search).get("app");
     await launch(apps().some((a) => a.id === initial) ? initial : homeApp());
-  }
+  } else if (me.maintenance?.enabled) await launch('admin');
 }
 function passwordDialog(required = false) {
   $("modal-title").textContent = required
@@ -691,12 +692,14 @@ async function checkSession() {
   try {
     const updated = await api("/api/me");
     if (
-      JSON.stringify(updated.permissions) !== JSON.stringify(me.permissions)
+      JSON.stringify(updated.permissions) !== JSON.stringify(me.permissions) ||
+      updated.maintenance?.enabled !== me.maintenance?.enabled
     ) {
       me = updated;
       windowManager?.prune(apps().map((a) => a.id));
       renderDesktop();
       if (embedded) await launch(homeApp());
+      else if (me.maintenance?.enabled) await launch('admin');
       toast("Je toegangsrechten zijn bijgewerkt.");
     }
   } catch (error) {
@@ -768,6 +771,7 @@ document.addEventListener("keydown", (event) => {
   }
 });
 window.addEventListener("focus", checkSession);
+window.addEventListener('amrp-maintenance-state', () => {if (me) checkSession();});
 if (embedded) {
   document.addEventListener("pointerdown", () =>
     parent.postMessage({ type: "amrp-focus" }, location.origin),
@@ -836,5 +840,5 @@ try {
   if (embedded) parent.postMessage({ type: "amrp-ready" }, location.origin);
   await checkChanges();
 } catch (error) {
-  lockScreen(error.message);
+  if (error.code !== 'SITE_MAINTENANCE') lockScreen(error.message);
 }

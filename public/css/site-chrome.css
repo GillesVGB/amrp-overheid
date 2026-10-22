@@ -1,0 +1,32 @@
+.creator-credit { display:inline-flex; align-items:center; gap:8px; color:inherit; text-decoration:none; font:12px "Segoe UI",sans-serif; line-height:1.2; white-space:nowrap; border-radius:6px; padding:3px 5px; }
+.creator-credit:hover { color:inherit; background:#7ca5cf20; }
+.creator-credit strong { font-weight:600; }
+.creator-avatar { position:relative; display:grid; place-items:center; width:26px; height:26px; flex:0 0 26px; overflow:hidden; border-radius:50%; background:#35629c; color:#fff; font-weight:600; box-shadow:0 0 0 1px #8aa2bd55; }
+.creator-avatar img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.creator-avatar img[hidden] { display:none; }
+.creator-login-credit { position:fixed; z-index:4; bottom:21px; left:50%; transform:translateX(-50%); color:#f3f7ff; }
+.taskbar { padding-left:116px; padding-right:160px; }
+.taskbar .creator-credit { position:absolute; left:10px; top:8px; color:inherit; }
+.taskbar .pinned-apps { min-width:0; overflow-x:auto; flex-shrink:1; scrollbar-width:none; }
+.taskbar .pinned-apps button { flex-shrink:0; }
+.maintenance-page { min-height:100dvh; display:grid; place-items:center; padding:30px 20px 90px; color:#e8f1ff; background:radial-gradient(ellipse at 25% 0,#185f9b,transparent 60%),linear-gradient(130deg,#0a213c,#0c3a68); }
+.maintenance-card { width:min(580px,100%); padding:42px; border:1px solid #9ec9f030; border-radius:16px; background:#0b2542cc; box-shadow:0 25px 100px #0004; }
+.maintenance-label { font-size:10px; letter-spacing:.17em; color:#bad0e8; }
+.maintenance-symbol { display:block; margin:32px 0 16px; font-size:44px; color:#efb651; }
+.maintenance-card h1 { margin:0 0 18px; font-size:30px; font-weight:600; color:inherit; }
+.maintenance-card p { line-height:1.7; color:#d5e3f5; white-space:pre-wrap; overflow-wrap:anywhere; }
+.maintenance-links { display:flex; flex-wrap:wrap; gap:15px 24px; margin:30px 0; }
+.maintenance-links a { color:#94caff; font-size:13px; }
+.maintenance-card > small { color:#a9bed8; font-size:11px; }
+.maintenance-form textarea { min-height:100px; resize:vertical; }
+.maintenance-state { padding:13px 16px; margin-bottom:18px; background:#fff5df; color:#805411; border:1px solid #e5bc72; border-radius:6px; }
+:root[data-theme="dark"] .maintenance-state { background:#3c311e; color:#f3cc8c; border-color:#755c30; }
+@media(max-width:759px) {
+  .creator-login-credit { bottom:79px; left:17px; transform:none; }
+  .taskbar { padding-left:91px; padding-right:117px; }
+  .taskbar .creator-credit { left:3px; top:10px; font-size:10px; gap:5px; }
+  .taskbar .creator-avatar { width:22px; height:22px; flex-basis:22px; }
+  .maintenance-card { padding:27px; }
+  .maintenance-card h1 { font-size:26px; }
+  .maintenance-page .creator-login-credit { bottom:22px; left:50%; transform:translateX(-50%); }
+}

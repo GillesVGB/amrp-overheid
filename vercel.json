@@ -4,6 +4,16 @@
   "outputDirectory": "public",
   "redirects": [
     {
+      "source": "/admin",
+      "destination": "/login.html?beheer=1",
+      "permanent": false
+    },
+    {
+      "source": "/admin/",
+      "destination": "/login.html?beheer=1",
+      "permanent": false
+    },
+    {
       "source": "/:path*",
       "has": [
         { "type": "host", "value": "overheid-amrp.vercel.app" }

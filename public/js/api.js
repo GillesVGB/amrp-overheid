@@ -24,9 +24,14 @@ export function createApi({
     }
     const data = await response.json();
     if (!response.ok) {
+      if (data.code === 'SITE_MAINTENANCE' && typeof window !== 'undefined' &&
+          !(location.pathname === '/login.html' && new URLSearchParams(location.search).get('beheer') === '1')) {
+        try {window.top.location.replace('/onderhoud.html');} catch {location.replace('/onderhoud.html');}
+      }
       if (response.status === 401 && session) onUnauthorized(data.error);
       const error = Error(data.error || "Het verzoek is mislukt.");
       error.status = response.status;
+      error.code = data.code;
       throw error;
     }
     return data;

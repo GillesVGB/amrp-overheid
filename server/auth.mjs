@@ -24,6 +24,7 @@ import {
 const API = "https://discord.com/api/v10";
 import { completeDiscordLogin } from "./discord-login.mjs";
 import { createPasswordVerifier } from "./password-auth.mjs";
+import { maintenanceState, blockForMaintenance } from "./maintenance.mjs";
 export function authentication({
   db,
   config,
@@ -299,6 +300,9 @@ export function authentication({
         403,
         "Je hebt geen toegangsrol voor deze omgeving.",
       );
+      const maintenance = maintenanceState(db);
+      if (maintenance.enabled && !grants.admin && req.path.startsWith('/api/'))
+        return blockForMaintenance(req, res, maintenance);
       db.prepare("UPDATE sessions SET last_seen=?,tokens=? WHERE hash=?").run(
         clock(),
         encrypt(verified.tokens, config.key),
@@ -713,6 +717,7 @@ export function authentication({
         discordName:
           req.auth.identity.global_name || req.auth.identity.username,
         settings: { name: getSettings(db).name },
+        maintenance: maintenanceState(db),
         demo: Boolean(config.demo),
         authMode: req.auth.method,
       }),

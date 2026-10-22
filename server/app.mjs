@@ -39,6 +39,8 @@ import { createDiscordSync } from "./discord-sync.mjs";
 import { previewCallsignImport, importCallsigns } from "./callsign-import.mjs";
 import { installWorkspace } from "./workspace.mjs";
 import { installMeosProfile } from "./meos-profile.mjs";
+import { createCreatorProfile } from "./creator-profile.mjs";
+import { installMaintenance } from "./maintenance.mjs";
 const publicDir = fileURLToPath(new URL("../public/", import.meta.url));
 export async function createApp(config, options = {}) {
   const db = options.db || openDatabase(config),
@@ -52,7 +54,7 @@ export async function createApp(config, options = {}) {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'"],
           styleSrc: ["'self'"],
-          imgSrc: ["'self'", "blob:"],
+          imgSrc: ["'self'", "blob:", "https://cdn.discordapp.com"],
           connectSrc: ["'self'"],
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],
@@ -74,6 +76,9 @@ export async function createApp(config, options = {}) {
   installMeosProfile(app, { db, config });
   const auth = authentication({ db, config, ...options });
   auth.install(app);
+  installMaintenance(app, { db, auth });
+  const creatorProfile = createCreatorProfile({request: options.creatorRequest || fetch});
+  app.get('/api/creator', async (_req, res) => res.set('Cache-Control', 'no-store').json(await creatorProfile()));
   const roster = createDiscordSync({
     db,
     config,
@@ -894,6 +899,7 @@ export async function createApp(config, options = {}) {
     const before = getSettings(db),
       body = req.body,
       next = {
+        ...before,
         name: text(body.name, "Omgevingsnaam", 80),
         roles: {},
         grants: {},
