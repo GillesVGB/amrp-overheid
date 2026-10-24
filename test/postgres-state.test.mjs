@@ -121,6 +121,49 @@ function fixture() {
   };
 }
 
+test("Supabase tables block the public Data API while the owning backend persists data", async () => {
+  const local = fixture(),
+    pool = createPool();
+  local.config.protectPublicTables = true;
+  try {
+    await withPostgresPortalState(local.config, () => {}, { pool });
+    const protection = pool.queries.find((sql) =>
+      sql.includes("ENABLE ROW LEVEL SECURITY"),
+    );
+    assert.ok(protection);
+    for (const table of [
+      "amrp_portal_meta",
+      "users",
+      "sessions",
+      "settings",
+      "personnel",
+      "callsigns",
+    ]) {
+      assert.ok(
+        protection.includes(
+          `ALTER TABLE "public"."${table}" ENABLE ROW LEVEL SECURITY`,
+        ),
+      );
+      assert.ok(
+        protection.includes(
+          `REVOKE ALL ON TABLE "public"."${table}" FROM PUBLIC,anon,authenticated`,
+        ),
+      );
+    }
+    await withPostgresPortalState(
+      local.config,
+      (db) =>
+        db
+          .prepare("UPDATE settings SET value=? WHERE id=1")
+          .run('{"title":"Persisted"}'),
+      { pool },
+    );
+    assert.equal(pool.state.rows.settings[0].value, '{"title":"Persisted"}');
+  } finally {
+    local.close();
+  }
+});
+
 test("individual PostgreSQL tables persist writes, avoid read/auth revision loops and roll back failures", async () => {
   const local = fixture(),
     pool = createPool();

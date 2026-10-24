@@ -13,6 +13,7 @@ import { withPostgresPortalState } from "./postgres-state.mjs";
 import { maintenanceState } from "./maintenance.mjs";
 import { readPublicMaintenance } from "./public-maintenance.mjs";
 import { createPublicVercelResponse } from "./vercel-public.mjs";
+import { postgresConfig } from "./postgres-config.mjs";
 
 const templateDir = fs.mkdtempSync(path.join(os.tmpdir(), "amrp-template-"));
 const config = configFromEnv({
@@ -20,14 +21,12 @@ const config = configFromEnv({
   NODE_ENV: "production",
   DATA_DIR: templateDir,
 });
-const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
-if (!connectionString)
-  throw new Error(
-    "Koppel eerst een PostgreSQL-database aan dit Vercel-project.",
-  );
+const { connectionString, protectPublicTables, ssl } = postgresConfig();
+config.protectPublicTables = protectPublicTables;
 
 const pool = new Pool({
   connectionString,
+  ...(ssl ? { ssl } : {}),
   max: Number(process.env.DB_POOL_MAX || 3),
   idleTimeoutMillis: 10000,
   connectionTimeoutMillis: 10000,

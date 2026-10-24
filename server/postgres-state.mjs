@@ -457,6 +457,20 @@ export async function withPostgresPortalState(config, callback, { pool } = {}) {
       // checks before ALTER TABLE can enforce the updated schema.
       await client.query("SET CONSTRAINTS ALL IMMEDIATE");
       await ensureConstraints(client, after);
+      if (config.protectPublicTables) {
+        // Supabase's public schema is exposed through its Data API. Only this
+        // backend role owns the tables; browser anon/authenticated roles must
+        // never read accounts, tokens or personnel through that separate API.
+        const tables = [META_TABLE, ...after.tables.map((table) => table.name)];
+        await client.query(
+          tables
+            .map(
+              (name) =>
+                `ALTER TABLE ${tableName(name)} ENABLE ROW LEVEL SECURITY; REVOKE ALL ON TABLE ${tableName(name)} FROM PUBLIC,anon,authenticated`,
+            )
+            .join(";\n"),
+        );
+      }
     }
     const nextRevision =
       revision +

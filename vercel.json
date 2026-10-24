@@ -2,6 +2,9 @@
   "framework": null,
   "buildCommand": "npm run build",
   "outputDirectory": "public",
+  "functions": {
+    "api/**/*.mjs": { "includeFiles": "server/certs/**" }
+  },
   "redirects": [
     {
       "source": "/admin",

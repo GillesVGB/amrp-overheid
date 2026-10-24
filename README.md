@@ -95,3 +95,23 @@ Publieke avatarcontroles gebruiken geen databaseverbinding. De onderhoudsstatus
 leest bij een gemigreerd portaal alleen de opgeslagen instellingenrij, zonder
 alle portaalgegevens te laden of een schrijftransactie te starten. Accountacties
 en andere wijzigingen blijven de bestaande beveiligde transactie gebruiken.
+
+## Supabase als database
+
+Stel alleen voor de gewenste Vercel-omgeving de geheime variabele
+`SUPABASE_DATABASE_URL` in. Deze heeft voorrang op `POSTGRES_URL` en
+`DATABASE_URL`, zodat de oude Neon-koppeling behouden kan blijven voor een export.
+Gebruik de **Transaction pooler** uit het juiste Supabase-project, met een eigen
+backendrol en `sslmode=verify-full`. De meegeleverde publieke Supabase-CA zorgt
+voor controle van het servercertificaat en de hostnaam; SSL-controle blijft aan.
+
+De backendrol moet eigenaar zijn van de portaaltabellen en in `public` tabellen
+kunnen maken. Geef deze rol geen superuser-, beheer-, of bypass-RLS-rechten. De
+app schakelt RLS in op haar tabellen en trekt Data API-toegang voor `anon` en
+`authenticated` in. Accountrechten lopen via de bestaande beveiligde backend.
+Er is geen Supabase API- of service-role-key nodig in de browser.
+
+Maak vóór het overschakelen een export van de oude database als bestaande
+gegevens mee moeten. Een lege start neemt geen bestaande accounts, documenten
+of instellingen over. Laat de oude database en Blob-store staan; een latere
+import moet nieuwe gegevens eerst vergelijken en mag die niet stil overschrijven.
