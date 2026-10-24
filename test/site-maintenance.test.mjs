@@ -192,7 +192,7 @@ test("Onderhoud blokkeert bezoekers en medewerkers, behoudt adminherstel en publ
   const publicPage = await guest.send("/");
   assert.equal(publicPage.status, 503);
   assert.ok(
-    publicPage.text.includes("Tijdelijk in onderhoud") &&
+    publicPage.text.includes('id="maintenance-title"') &&
       publicPage.text.includes("data-creator-credit"),
   );
   assert.equal(

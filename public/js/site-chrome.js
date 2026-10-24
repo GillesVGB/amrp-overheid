@@ -51,12 +51,25 @@ if (window.parent === window) {
       }
       const reason = document.getElementById("maintenance-reason");
       if (reason) {
+        document.body.dataset.maintenance = maintenance.enabled
+          ? "active"
+          : "available";
+        const stateLabel = document.getElementById("maintenance-state-label");
+        if (stateLabel)
+          stateLabel.textContent = maintenance.enabled
+            ? "Onderhoud"
+            : "Weer beschikbaar";
+        const intro = document.getElementById("maintenance-intro");
+        if (intro)
+          intro.textContent = maintenance.enabled
+            ? "We werken aan de digitale werkplek. Zo kun je straks weer prettig en betrouwbaar aan de slag."
+            : "De werkzaamheden zijn afgerond. Je kunt de digitale werkplek weer gebruiken.";
         reason.textContent = maintenance.enabled
           ? maintenance.reason
           : "De werkplek is weer beschikbaar. Je kunt opnieuw aanmelden.";
         document.getElementById("maintenance-title").textContent =
           maintenance.enabled
-            ? "Tijdelijk in onderhoud"
+            ? "Even ruimte voor verbetering."
             : "De werkplek is beschikbaar";
         const login = document.getElementById("maintenance-login");
         login.href = maintenance.enabled

@@ -8,30 +8,124 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/css/style.css" />
     <link rel="stylesheet" href="/css/site-chrome.css" />
+    <link rel="stylesheet" href="/css/maintenance.css" />
   </head>
   <body class="maintenance-page">
-    <main class="maintenance-card">
-      <span class="maintenance-label"
-        >GEMEENTE AMSTERDAM · DIGITALE WERKPLEK</span
+    <header class="maintenance-header">
+      <a
+        class="maintenance-brand"
+        href="/login.html?beheer=1"
+        aria-label="Amsterdam Overheidsportaal"
       >
-      <span class="maintenance-symbol" aria-hidden="true">⚙</span>
-      <h1 id="maintenance-title">Tijdelijk in onderhoud</h1>
-      <p id="maintenance-reason" role="status">
-        De onderhoudsmelding wordt geladen…
-      </p>
-      <div class="maintenance-links">
-        <a
-          href="https://status.amsterdamrp.nl/"
-          target="_blank"
-          rel="noopener noreferrer"
-          >Bekijk de statuswebsite ↗</a
-        ><a href="/login.html?beheer=1" id="maintenance-login"
-          >Beheerder aanmelden</a
+        <img src="/favicon.svg" width="42" height="42" alt="" />
+        <span>AMSTERDAM<small>Overheidsportaal</small></span>
+      </a>
+      <a
+        class="maintenance-header-link"
+        href="https://status.amsterdamrp.nl/"
+        target="_blank"
+        rel="noopener noreferrer"
+        >Systeemstatus <span aria-hidden="true">↗</span></a
+      >
+    </header>
+    <main class="maintenance-window" aria-labelledby="maintenance-title">
+      <div class="maintenance-titlebar">
+        <span
+          ><img src="/favicon.svg" width="16" height="16" alt="" /> Digitale
+          werkplek</span
+        ><span class="maintenance-window-controls" aria-hidden="true"
+          >− &nbsp; □ &nbsp; ×</span
         >
       </div>
-      <small>Deze melding wordt automatisch bijgewerkt.</small>
+      <div class="maintenance-layout">
+        <section class="maintenance-content">
+          <span class="maintenance-badge" id="maintenance-badge"
+            ><span aria-hidden="true"></span
+            ><span id="maintenance-state-label">Onderhoud</span></span
+          >
+          <h1 id="maintenance-title">Even ruimte voor<br />verbetering.</h1>
+          <p class="maintenance-intro" id="maintenance-intro">
+            We werken aan de digitale werkplek. Zo kun je straks weer prettig en
+            betrouwbaar aan de slag.
+          </p>
+          <div class="maintenance-message">
+            <span class="maintenance-message-label"
+              >BERICHT VAN HET BEHEER</span
+            >
+            <p id="maintenance-reason" role="status">
+              De onderhoudsmelding wordt geladen…
+            </p>
+          </div>
+          <div class="maintenance-actions">
+            <a
+              class="maintenance-primary"
+              href="https://status.amsterdamrp.nl/"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Bekijk de systeemstatus <span aria-hidden="true">↗</span></a
+            >
+          </div>
+          <p class="maintenance-auto">
+            <span class="maintenance-auto-icon" aria-hidden="true">↻</span> Deze
+            pagina controleert automatisch de beschikbaarheid.
+          </p>
+        </section>
+        <aside class="maintenance-visual" aria-hidden="true">
+          <div class="maintenance-orbit orbit-one"></div>
+          <div class="maintenance-orbit orbit-two"></div>
+          <div class="maintenance-pane"><i></i><i></i><i></i><i></i></div>
+          <div class="maintenance-tool">
+            <svg width="38" height="38" viewBox="0 0 32 32" fill="none">
+              <path
+                d="m11 20-5 5a2.8 2.8 0 0 0 4 4l5-5M19 4a8 8 0 0 0-8 11L24 28a2.8 2.8 0 0 0 4-4L15 11a8 8 0 0 0 4-7Z"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="m23 3-3 6 3 3 6-3a8 8 0 0 1-10 10"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+          <span class="maintenance-visual-caption"
+            >EEN BETERE WERKPLEK<br /><strong
+              >begint achter de schermen.</strong
+            ></span
+          >
+        </aside>
+      </div>
+      <div class="maintenance-window-footer">
+        <span
+          ><svg
+            width="15"
+            height="15"
+            viewBox="0 0 20 20"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M10 2 3 5v5c0 4 7 8 7 8s7-4 7-8V5l-7-3Z"
+              stroke="currentColor"
+              stroke-width="1.4"
+            />
+            <path d="m7 10 2 2 4-4" stroke="currentColor" stroke-width="1.4" />
+          </svg>
+          Beveiligde overheidsomgeving</span
+        ><a href="/login.html?beheer=1" id="maintenance-login"
+          >Beheerder aanmelden <span aria-hidden="true">→</span></a
+        >
+      </div>
     </main>
-    <footer class="creator-login-credit">
+    <footer class="creator-login-credit maintenance-page-footer">
+      <span
+        >Amsterdam Roleplay <span aria-hidden="true">·</span> Digitale
+        werkplek</span
+      >
       <a
         class="creator-credit"
         href="https://discord.com/users/960090714950225970"
