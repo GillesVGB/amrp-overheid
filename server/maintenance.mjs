@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { getSettings, transaction, audit, timestamp } from "./database.mjs";
 import { requireValue } from "./security.mjs";
 
@@ -29,7 +30,27 @@ export function blockForMaintenance(req, res, state) {
     });
 }
 
-export function installMaintenance(app, { db, auth }) {
+export function installMaintenance(app, { db, auth, config = {} }) {
+  // Dedicated machine credential: never accepts a browser session or arbitrary URLs.
+  app.put("/api/status-control/maintenance", (req, res) => {
+    const secret = config.statusControlSecret;
+    if (!secret || secret.length < 32) return res.status(503).json({ error: "Statuskoppeling is niet ingesteld." });
+    const supplied = req.get("authorization") || "";
+    const hash = (value) => createHash("sha256").update(value).digest();
+    if (!timingSafeEqual(hash(supplied), hash(`Bearer ${secret}`)))
+      return res.status(401).json({ error: "Ongeldige statuskoppeling." });
+    requireValue(req.body && typeof req.body.enabled === "boolean", 400, "Kies of onderhoud aan of uit moet staan.");
+    requireValue(typeof req.body.reason === "string", 400, "Vul een onderhoudsreden in.");
+    const reason = req.body.reason.trim();
+    requireValue(reason.length <= 500 && (!req.body.enabled || reason.length >= 5), 400, "Vul een onderhoudsreden in van 5 tot 500 tekens.");
+    const next = { enabled: req.body.enabled, reason: req.body.enabled ? reason : "", updatedAt: timestamp() };
+    transaction(db, () => {
+      const settings = getSettings(db);
+      db.prepare("UPDATE settings SET value=? WHERE id=1").run(JSON.stringify({ ...settings, maintenance: next }));
+      audit(db, { id: "status-control", username: "Statuswebsite · beheerder" }, next.enabled ? "systeem.onderhoud_ingeschakeld" : "systeem.onderhoud_beeindigd", "onderhoud", settings.maintenance || { enabled: false }, next);
+    });
+    return res.set("Cache-Control", "no-store").json({ ok: true, maintenance: next });
+  });
   const html = () =>
     fs.readFileSync(
       new URL("../public/onderhoud.html", import.meta.url),

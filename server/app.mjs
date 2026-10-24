@@ -76,7 +76,7 @@ export async function createApp(config, options = {}) {
   installMeosProfile(app, { db, config });
   const auth = authentication({ db, config, ...options });
   auth.install(app);
-  installMaintenance(app, { db, auth });
+  installMaintenance(app, { db, auth, config });
   const creatorProfile = createCreatorProfile({
     request: options.creatorRequest || fetch,
   });
