@@ -10,6 +10,9 @@ import { configFromEnv } from "./config.mjs";
 import { openDatabase } from "./database.mjs";
 import { bridgeVercelRequest } from "./vercel-function-adapter.mjs";
 import { withPostgresPortalState } from "./postgres-state.mjs";
+import { maintenanceState } from "./maintenance.mjs";
+import { readPublicMaintenance } from "./public-maintenance.mjs";
+import { createPublicVercelResponse } from "./vercel-public.mjs";
 
 const templateDir = fs.mkdtempSync(path.join(os.tmpdir(), "amrp-template-"));
 const config = configFromEnv({
@@ -68,6 +71,13 @@ const portal = await createApp(config, {
   bootstrapSecret: process.env.INITIAL_SETUP_KEY || "",
 });
 const proxy = serverless(portal.app, { binary: true });
+const publicResponse = createPublicVercelResponse({
+  proxy,
+  readMaintenance: () =>
+    readPublicMaintenance(pool, () =>
+      withPortalState(() => ({ maintenance: maintenanceState(db) })),
+    ),
+});
 
 export async function withPortalState(callback) {
   const { result, afterCommit } = await withPostgresPortalState(
@@ -112,5 +122,6 @@ export function handleVercelRequest(req, res) {
     origin: config.origin,
     withPortalState,
     proxy,
+    publicResponse,
   });
 }

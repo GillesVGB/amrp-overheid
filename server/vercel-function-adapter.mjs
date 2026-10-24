@@ -13,7 +13,8 @@ export function toVercelWebRequest(req, origin) {
 
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
-    if (Array.isArray(value)) value.forEach((item) => headers.append(name, item));
+    if (Array.isArray(value))
+      value.forEach((item) => headers.append(name, item));
     else if (value !== undefined) headers.set(name, value);
   }
   const method = req.method || "GET";
@@ -37,24 +38,33 @@ export function toVercelWebRequest(req, origin) {
   });
 }
 
-export async function bridgeVercelRequest(req, res, { origin, withPortalState, proxy }) {
+export async function bridgeVercelRequest(
+  req,
+  res,
+  { origin, withPortalState, proxy, publicResponse },
+) {
   const request = toVercelWebRequest(req, origin);
   const forwarded = req.headers["x-forwarded-for"];
   const context = {
     ip:
-      (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim() ||
+      (Array.isArray(forwarded) ? forwarded[0] : forwarded)
+        ?.split(",")[0]
+        ?.trim() ||
       req.socket?.remoteAddress ||
       "",
     requestId: req.headers["x-vercel-id"] || "",
   };
   // Finish the persistence transaction before sending cookies or redirects.
-  const response = await withPortalState(() => bridgeRequest(request, context, proxy));
+  const response =
+    (await publicResponse?.(request, context)) ||
+    (await withPortalState(() => bridgeRequest(request, context, proxy)));
+  const body =
+    req.method === "HEAD" ? null : Buffer.from(await response.arrayBuffer());
   res.statusCode = response.status;
   const cookies = response.headers.getSetCookie();
   response.headers.forEach((value, name) => {
     if (name !== "set-cookie") res.setHeader(name, value);
   });
   if (cookies.length) res.setHeader("Set-Cookie", cookies);
-  const body = req.method === "HEAD" ? null : Buffer.from(await response.arrayBuffer());
   res.end(body);
 }

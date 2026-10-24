@@ -81,3 +81,17 @@ Op het aanmeldscherm, de taakbalk en de onderhoudspagina staat **By Gilles** met
 de Discord-avatar van `960090714950225970`. De avatar wordt periodiek ververst via
 Lanyard; alleen de avatar-URL wordt aan de browser doorgegeven. Er is geen eigen
 Discord-bot of extra geheim nodig voor de footer.
+
+## Database tijdelijk niet beschikbaar
+
+De Vercel-functie geeft bij databaseproblemen een JSON-fout met HTTP 503 terug.
+`DATABASE_QUOTA_EXCEEDED` betekent dat Neon nieuwe verbindingen weigert omdat een
+verbruikslimiet is bereikt. Controleer de gekoppelde database via **Vercel →
+Storage → Neon → Open in Neon → Usage**. Het limiet moet daar worden opgelost;
+een nieuwe websitedeploy herstelt een uitgeput quotum niet. Er wordt nooit een
+lege vervangende database of een onterechte succesmelding gebruikt.
+
+Publieke avatarcontroles gebruiken geen databaseverbinding. De onderhoudsstatus
+leest bij een gemigreerd portaal alleen de opgeslagen instellingenrij, zonder
+alle portaalgegevens te laden of een schrijftransactie te starten. Accountacties
+en andere wijzigingen blijven de bestaande beveiligde transactie gebruiken.

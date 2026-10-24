@@ -22,10 +22,23 @@ export function createApi({
     } catch {
       throw Error("Geen verbinding met de server. Probeer het opnieuw.");
     }
-    const data = await response.json();
+    if (response.status === 204) return null;
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      const message = response.ok
+        ? "De server gaf een ongeldig antwoord. Probeer het opnieuw."
+        : `De server kan het verzoek nu niet verwerken (HTTP ${response.status}). Probeer het opnieuw.`;
+      if (response.status === 401 && session) onUnauthorized(message);
+      const error = Error(message);
+      error.status = response.status;
+      error.code = "INVALID_SERVER_RESPONSE";
+      throw error;
+    }
     if (!response.ok) {
       if (
-        data.code === "SITE_MAINTENANCE" &&
+        data?.code === "SITE_MAINTENANCE" &&
         typeof window !== "undefined" &&
         !(
           location.pathname === "/login.html" &&
@@ -38,10 +51,14 @@ export function createApi({
           location.replace("/onderhoud.html");
         }
       }
-      if (response.status === 401 && session) onUnauthorized(data.error);
-      const error = Error(data.error || "Het verzoek is mislukt.");
+      const message =
+        typeof data?.error === "string" && data.error
+          ? data.error
+          : "Het verzoek is mislukt.";
+      if (response.status === 401 && session) onUnauthorized(message);
+      const error = Error(message);
       error.status = response.status;
-      error.code = data.code;
+      error.code = data?.code;
       throw error;
     }
     return data;
