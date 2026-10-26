@@ -2,14 +2,11 @@ import fs from "node:fs";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { getSettings, transaction, audit, timestamp } from "./database.mjs";
 import { requireValue } from "./security.mjs";
+import { effectiveMaintenance } from "./maintenance-state.mjs";
+import { randomUUID } from "node:crypto";
 
 export function maintenanceState(db) {
-  const value = getSettings(db).maintenance;
-  return {
-    enabled: value?.enabled === true,
-    reason: value?.enabled === true ? String(value.reason || "") : "",
-    updatedAt: value?.updatedAt || null,
-  };
+  return effectiveMaintenance(getSettings(db));
 }
 
 export function maintenanceHeaders(res, state) {
@@ -31,6 +28,19 @@ export function blockForMaintenance(req, res, state) {
 }
 
 export function installMaintenance(app, { db, auth, config = {} }) {
+  app.put("/api/maintenance/schedule",auth.auth,auth.csrf,auth.permit("settings"),(req,res)=>{
+    const startsAt=Date.parse(req.body.startsAt),endsAt=req.body.endsAt?Date.parse(req.body.endsAt):null;
+    const reason=String(req.body.reason||"").trim();
+    requireValue(Number.isFinite(startsAt)&&startsAt>Date.now()&&startsAt<Date.now()+366*86400000,400,"Kies een toekomstige begindatum binnen één jaar.");
+    requireValue(!req.body.endsAt||(Number.isFinite(endsAt)&&endsAt>startsAt),400,"De eindtijd moet na de begintijd liggen.");
+    requireValue(reason.length>=5&&reason.length<=500,400,"Vul een onderhoudsreden in van 5 tot 500 tekens.");
+    const schedule={id:randomUUID(),startsAt:new Date(startsAt).toISOString(),endsAt:endsAt?new Date(endsAt).toISOString():null,reason};
+    transaction(db,()=>{const s=getSettings(db);db.prepare("UPDATE settings SET value=? WHERE id=1").run(JSON.stringify({...s,maintenanceSchedule:schedule}));audit(db,req.auth.user,"systeem.onderhoud_gepland","onderhoud",s.maintenanceSchedule||null,schedule);});
+    res.json({ok:true,schedule});
+  });
+  app.delete("/api/maintenance/schedule",auth.auth,auth.csrf,auth.permit("settings"),(req,res)=>{
+    transaction(db,()=>{const s=getSettings(db);db.prepare("UPDATE settings SET value=? WHERE id=1").run(JSON.stringify({...s,maintenanceSchedule:null}));audit(db,req.auth.user,"systeem.onderhoudsplanning_geannuleerd","onderhoud",s.maintenanceSchedule||null,null);});res.json({ok:true});
+  });
   // Dedicated machine credential: never accepts a browser session or arbitrary URLs.
   app.put("/api/status-control/maintenance", (req, res) => {
     const secret = config.statusControlSecret;
@@ -46,7 +56,7 @@ export function installMaintenance(app, { db, auth, config = {} }) {
     const next = { enabled: req.body.enabled, reason: req.body.enabled ? reason : "", updatedAt: timestamp() };
     transaction(db, () => {
       const settings = getSettings(db);
-      db.prepare("UPDATE settings SET value=? WHERE id=1").run(JSON.stringify({ ...settings, maintenance: next }));
+      db.prepare("UPDATE settings SET value=? WHERE id=1").run(JSON.stringify({ ...settings, maintenance: next, ...(!next.enabled?{maintenanceSchedule:null}:{}) }));
       audit(db, { id: "status-control", username: "Statuswebsite · beheerder" }, next.enabled ? "systeem.onderhoud_ingeschakeld" : "systeem.onderhoud_beeindigd", "onderhoud", settings.maintenance || { enabled: false }, next);
     });
     return res.set("Cache-Control", "no-store").json({ ok: true, maintenance: next });
@@ -86,7 +96,7 @@ export function installMaintenance(app, { db, auth, config = {} }) {
       transaction(db, () => {
         const settings = getSettings(db);
         db.prepare("UPDATE settings SET value=? WHERE id=1").run(
-          JSON.stringify({ ...settings, maintenance: next }),
+          JSON.stringify({ ...settings, maintenance: next, ...(!next.enabled?{maintenanceSchedule:null}:{}) }),
         );
         audit(
           db,

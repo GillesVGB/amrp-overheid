@@ -2,7 +2,6 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { Pool } from "pg";
 import { del, get, put } from "@vercel/blob";
 import serverless from "serverless-http";
 import { createApp } from "./app.mjs";
@@ -13,7 +12,7 @@ import { withPostgresPortalState } from "./postgres-state.mjs";
 import { maintenanceState } from "./maintenance.mjs";
 import { readPublicMaintenance } from "./public-maintenance.mjs";
 import { createPublicVercelResponse } from "./vercel-public.mjs";
-import { postgresConfig } from "./postgres-config.mjs";
+import { vercelDatabaseOptions, vercelDatabasePool } from "./vercel-database.mjs";
 
 const templateDir = fs.mkdtempSync(path.join(os.tmpdir(), "amrp-template-"));
 const config = configFromEnv({
@@ -21,16 +20,10 @@ const config = configFromEnv({
   NODE_ENV: "production",
   DATA_DIR: templateDir,
 });
-const { connectionString, protectPublicTables, ssl } = postgresConfig();
+const { protectPublicTables } = vercelDatabaseOptions();
 config.protectPublicTables = protectPublicTables;
 
-const pool = new Pool({
-  connectionString,
-  ...(ssl ? { ssl } : {}),
-  max: Number(process.env.DB_POOL_MAX || 3),
-  idleTimeoutMillis: 10000,
-  connectionTimeoutMillis: 10000,
-});
+const pool = await vercelDatabasePool();
 const databaseContext = new AsyncLocalStorage();
 const templateDb = openDatabase(config);
 const db = {

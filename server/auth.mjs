@@ -25,6 +25,18 @@ const API = "https://discord.com/api/v10";
 import { completeDiscordLogin } from "./discord-login.mjs";
 import { createPasswordVerifier } from "./password-auth.mjs";
 import { maintenanceState, blockForMaintenance } from "./maintenance.mjs";
+export function sessionDetails(db, config, auth) {
+  return {
+    user: publicUser(auth.user),
+    permissions: auth.grants,
+    csrf: auth.session.csrf,
+    discordName: auth.identity.global_name || auth.identity.username,
+    settings: { name: getSettings(db).name },
+    maintenance: maintenanceState(db),
+    demo: Boolean(config.demo),
+    authMode: auth.method,
+  };
+}
 export function authentication({
   db,
   config,
@@ -303,11 +315,14 @@ export function authentication({
       const maintenance = maintenanceState(db);
       if (maintenance.enabled && !grants.admin && req.path.startsWith("/api/"))
         return blockForMaintenance(req, res, maintenance);
-      db.prepare("UPDATE sessions SET last_seen=?,tokens=? WHERE hash=?").run(
-        clock(),
-        encrypt(verified.tokens, config.key),
-        hash,
-      );
+      const tokensChanged = JSON.stringify(verified.tokens) !== JSON.stringify(credentials);
+      if (tokensChanged || clock() - session.last_seen >= 60000) {
+        db.prepare("UPDATE sessions SET last_seen=?,tokens=? WHERE hash=?").run(
+          clock(),
+          tokensChanged ? encrypt(verified.tokens, config.key) : session.tokens,
+          hash,
+        );
+      }
       req.auth = {
         user,
         session,
@@ -372,7 +387,7 @@ export function authentication({
     }
   };
   function install(app) {
-    app.post("/auth/discord/login", sameOrigin, (req, res) => {
+    app.post(["/auth/discord/login", "/auth/password/reset"], sameOrigin, (req, res) => {
       requireValue(
         config.discordReady,
         503,
@@ -389,10 +404,11 @@ export function authentication({
         db.prepare("DELETE FROM discord_login_flows WHERE hash=?").run(
           digest(old),
         );
-      db.prepare("INSERT INTO discord_login_flows VALUES(?,?,?)").run(
+      db.prepare("INSERT INTO discord_login_flows(hash,verifier,expires_at,intent) VALUES(?,?,?,?)").run(
         digest(state),
         verifier,
         clock() + 5 * 60e3,
+        req.path === "/auth/password/reset" ? "reset" : "login",
       );
       res.cookie(flowName, state, { ...cookies, maxAge: 5 * 60e3 });
       const params = new URLSearchParams({
@@ -611,11 +627,24 @@ export function authentication({
         };
         const verified = await member(tokens);
         if (direct) {
+          if (direct.intent === "reset") {
+            const existing = db.prepare("SELECT * FROM users WHERE discord_id=? AND enabled=1").get(verified.identity.id);
+            requireValue(existing,403,"Er is geen actief account gekoppeld aan dit Discord-account.");
+          }
           const user = await completeDiscordLogin(
             db,
             verified,
             config.roles.owner || [],
           );
+          if (direct.intent === "reset") {
+            const replacement = await hashPassword(token());
+            transaction(db,()=>{
+              db.prepare("DELETE FROM sessions WHERE user_id=?").run(user.id);
+              db.prepare("UPDATE users SET password_hash=?,must_change=1 WHERE id=?").run(replacement,user.id);
+              audit(db,user,"account.discord_wachtwoordherstel",user.id);
+            });
+            user.must_change=1;
+          }
           createSession(res, user, verified.tokens);
           res.clearCookie(flowName, cookies);
           audit(db, user, "sessie.discord_aangemeld", user.id);
@@ -710,17 +739,7 @@ export function authentication({
       }
     });
     app.get("/api/me", auth, (req, res) =>
-      res.json({
-        user: publicUser(req.auth.user),
-        permissions: req.auth.grants,
-        csrf: req.auth.session.csrf,
-        discordName:
-          req.auth.identity.global_name || req.auth.identity.username,
-        settings: { name: getSettings(db).name },
-        maintenance: maintenanceState(db),
-        demo: Boolean(config.demo),
-        authMode: req.auth.method,
-      }),
+      res.json(sessionDetails(db, config, req.auth)),
     );
     app.post("/auth/logout", sameOrigin, (req, res) => {
       const hash = digest(cookieMap(req)[sessionName] || "");

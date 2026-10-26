@@ -11,6 +11,7 @@ import {
 } from "./security.mjs";
 import discordRanks from "./discord-ranks.json" with { type: "json" };
 import { installWorkspaceSchema } from "./workspace-schema.mjs";
+import { notifyAudit } from "./notifications.mjs";
 export const id = () => randomUUID();
 export const timestamp = () => new Date().toISOString();
 export function openDatabase(config) {
@@ -92,6 +93,8 @@ export function openDatabase(config) {
     )`);
   }
   installWorkspaceSchema(db);
+  db.exec(`CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,event_key TEXT NOT NULL,kind TEXT NOT NULL,title TEXT NOT NULL,body TEXT NOT NULL,app TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,read_at TEXT,UNIQUE(user_id,event_key)); CREATE INDEX IF NOT EXISTS notifications_user_date ON notifications(user_id,created_at); CREATE TABLE IF NOT EXISTS backup_runs(id TEXT PRIMARY KEY,status TEXT NOT NULL,storage_name TEXT,created_at TEXT NOT NULL,verified_at TEXT,summary TEXT NOT NULL,error TEXT);`);
+  if(!db.prepare("PRAGMA table_info(discord_login_flows)").all().some(x=>x.name==='intent')) db.exec("ALTER TABLE discord_login_flows ADD COLUMN intent TEXT NOT NULL DEFAULT 'login'");
   if (!db.prepare("SELECT id FROM settings").get()) {
     db.prepare("INSERT INTO settings VALUES(1,?)").run(
       JSON.stringify({
@@ -191,7 +194,7 @@ export function setAccountAccess(db, userId, access, actorId) {
   );
 }
 export function audit(db, actor, action, target, before = null, after = null) {
-  db.prepare(
+  const entry = db.prepare(
     "INSERT INTO audit(actor_id,actor_name,action,target,before_json,after_json,created_at) VALUES(?,?,?,?,?,?,?)",
   ).run(
     actor.id,
@@ -202,6 +205,7 @@ export function audit(db, actor, action, target, before = null, after = null) {
     after ? JSON.stringify(after) : null,
     timestamp(),
   );
+  notifyAudit(db, entry.lastInsertRowid, actor, action, target, before, after);
 }
 export function insertSlot(db, rank, slot) {
   db.prepare(

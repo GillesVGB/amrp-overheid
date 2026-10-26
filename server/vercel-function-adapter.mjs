@@ -58,6 +58,10 @@ export async function bridgeVercelRequest(
   const response =
     (await publicResponse?.(request, context)) ||
     (await withPortalState(() => bridgeRequest(request, context, proxy)));
+  return sendVercelResponse(req, res, response);
+}
+
+export async function sendVercelResponse(req, res, response) {
   const body =
     req.method === "HEAD" ? null : Buffer.from(await response.arrayBuffer());
   res.statusCode = response.status;

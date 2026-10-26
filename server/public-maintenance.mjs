@@ -10,14 +10,7 @@ function publicMaintenance(value) {
       typeof state.enabled !== "boolean")
   )
     throw new Error("De opgeslagen onderhoudsinstellingen zijn ongeldig.");
-  return {
-    maintenance: {
-      enabled: state?.enabled === true,
-      reason:
-        state?.enabled === true ? String(state.reason || "").slice(0, 500) : "",
-      updatedAt: typeof state?.updatedAt === "string" ? state.updatedAt : null,
-    },
-  };
+  return { maintenance: effectiveMaintenance(settings) };
 }
 
 // Public status polling needs one committed settings row, not a full portal
@@ -35,3 +28,4 @@ export async function readPublicMaintenance(pool, fallback) {
   if (!result.rows.length) return fallback();
   return publicMaintenance(result.rows[0].value);
 }
+import { effectiveMaintenance } from "./maintenance-state.mjs";

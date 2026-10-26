@@ -2,13 +2,15 @@
 if (window.parent === window) {
   let creditBusy = false,
     maintenanceBusy = false,
-    previousMaintenance;
+    lastCreditCheck = 0,
+    lastMaintenanceCheck = 0;
   async function updateCredit() {
-    if (creditBusy || document.hidden) return;
+    if (creditBusy || document.hidden || Date.now() - lastCreditCheck < 60000)
+      return;
     creditBusy = true;
+    lastCreditCheck = Date.now();
     try {
       const response = await fetch("/api/creator", {
-        cache: "no-store",
         signal: AbortSignal.timeout(6500),
       });
       if (!response.ok) return;
@@ -34,21 +36,26 @@ if (window.parent === window) {
     }
   }
   async function updateMaintenance() {
-    if (maintenanceBusy || document.hidden) return;
+    if (
+      maintenanceBusy ||
+      document.hidden ||
+      Date.now() - lastMaintenanceCheck < 60000
+    )
+      return;
     maintenanceBusy = true;
+    lastMaintenanceCheck = Date.now();
     try {
       const response = await fetch("/api/site-status", {
-        cache: "no-store",
         signal: AbortSignal.timeout(6500),
       });
       if (!response.ok) return;
       const { maintenance } = await response.json();
-      if (previousMaintenance !== maintenance.enabled) {
-        previousMaintenance = maintenance.enabled;
-        window.dispatchEvent(
-          new CustomEvent("amrp-maintenance-state", { detail: maintenance }),
-        );
-      }
+      const handled = !window.dispatchEvent(
+        new CustomEvent("amrp-maintenance-state", {
+          detail: maintenance,
+          cancelable: true,
+        }),
+      );
       const reason = document.getElementById("maintenance-reason");
       if (reason) {
         document.body.dataset.maintenance = maintenance.enabled
@@ -85,6 +92,7 @@ if (window.parent === window) {
           new URLSearchParams(location.search).get("beheer") === "1"
         )
       ) {
+        if (handled) return;
         const me = await fetch("/api/me", {
           cache: "no-store",
           signal: AbortSignal.timeout(6500),
@@ -100,8 +108,8 @@ if (window.parent === window) {
   }
   updateCredit();
   updateMaintenance();
-  setInterval(updateCredit, 30000);
-  setInterval(updateMaintenance, 10000);
+  setInterval(updateCredit, 60000);
+  setInterval(updateMaintenance, 60000);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
       updateCredit();

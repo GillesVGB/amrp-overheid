@@ -44,7 +44,7 @@ export function createCreatorProfile({
       } catch {
         /* The credit and the site keep working during a Lanyard outage. */
       } finally {
-        expires = clock() + 15000;
+        expires = clock() + 60000;
         pending = null;
       }
       return cached;

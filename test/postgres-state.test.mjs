@@ -220,6 +220,91 @@ test("individual PostgreSQL tables persist writes, avoid read/auth revision loop
   }
 });
 
+test("unchanged reads commit without row writes while DDL-only changes remain durable", async () => {
+  const local = fixture(),
+    pool = createPool();
+  const run = (callback) =>
+    withPostgresPortalState(local.config, callback, { pool });
+  try {
+    await run(() => {});
+    const revision = pool.state.meta.revision;
+    const queryStart = pool.queries.length;
+    await run((db, meta) => {
+      assert.equal(meta.revision, revision);
+      assert.ok(db.prepare("SELECT COUNT(*) n FROM callsigns").get().n);
+      assert.equal(db.prepare("SELECT total_changes() n").get().n, 0);
+    });
+    assert.equal(pool.state.meta.revision, revision);
+    assert.ok(
+      !pool.queries
+        .slice(queryStart)
+        .some((sql) => /^(?:DELETE FROM|INSERT INTO|\/\* amrp:save)/.test(sql)),
+    );
+    await run((db) => {
+      db.exec("CREATE TABLE schema_only_change(id TEXT PRIMARY KEY)");
+      // SQLite DDL does not count as a changed data row.
+      assert.equal(db.prepare("SELECT total_changes() n").get().n, 0);
+    });
+    assert.equal(pool.state.meta.revision, revision + 1);
+    assert.ok(
+      pool.state.meta.sqlite_schema.some(
+        (entry) => entry.name === "schema_only_change",
+      ),
+    );
+    assert.deepEqual(pool.state.rows.schema_only_change, []);
+    assert.equal(
+      await run(
+        (db) => db.prepare("SELECT COUNT(*) n FROM schema_only_change").get().n,
+      ),
+      0,
+    );
+  } finally {
+    local.close();
+  }
+});
+
+test("initialization migrations persist even when the request writes no data", async () => {
+  const local = fixture(),
+    pool = createPool();
+  const run = (callback) =>
+    withPostgresPortalState(local.config, callback, { pool });
+  try {
+    await run((db) => {
+      db.prepare(
+        "INSERT INTO users(id,username,discord_id,password_hash,created_at) VALUES(?,?,?,?,?)",
+      ).run("migrate", "migrate", "990000000000000002", "hash", "2026-01-01");
+      db.prepare(
+        "INSERT INTO user_preferences(user_id,wallpaper,updated_at) VALUES(?,?,?)",
+      ).run("migrate", "amsterdam", "2026-01-01");
+    });
+    const stored = pool.state.meta.sqlite_schema.find(
+      (entry) => entry.name === "user_preferences",
+    );
+    stored.sql = stored.sql.replace(
+      ",theme TEXT NOT NULL DEFAULT 'light'",
+      "",
+    );
+    for (const row of pool.state.rows.user_preferences) delete row.theme;
+    const revision = pool.state.meta.revision;
+    await run((db) => {
+      assert.equal(db.prepare("SELECT total_changes() n").get().n, 0);
+      assert.equal(
+        db.prepare("SELECT theme FROM user_preferences").get().theme,
+        "light",
+      );
+    });
+    assert.equal(pool.state.meta.revision, revision);
+    assert.equal(pool.state.rows.user_preferences[0].theme, "light");
+    assert.ok(
+      pool.state.meta.sqlite_schema
+        .find((entry) => entry.name === "user_preferences")
+        .sql.includes("theme TEXT NOT NULL DEFAULT 'light'"),
+    );
+  } finally {
+    local.close();
+  }
+});
+
 test("legacy snapshot migrates atomically with accounts, indexes, blobs, triggers and audit sequences intact", async () => {
   const local = fixture();
   try {

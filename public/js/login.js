@@ -17,13 +17,13 @@ try {
 document.querySelectorAll("[data-icon]").forEach((element) => {
   element.innerHTML = icon(element.dataset.icon);
 });
-async function signin(switchAccount = false) {
+async function signin(switchAccount = false, reset = false) {
   if (checking) return;
   checking = true;
   $("discord-signin").disabled = true;
   $("login-error").textContent = "";
   try {
-    const result = await api("/auth/discord/login", {
+    const result = await api(reset ? "/auth/password/reset" : "/auth/discord/login", {
       method: "POST",
       body: { switchAccount },
     });
@@ -39,6 +39,7 @@ async function signin(switchAccount = false) {
   }
 }
 $("discord-signin").addEventListener("click", () => signin());
+$("password-reset").addEventListener("click", () => signin(true, true));
 $("switch-account").addEventListener("click", () => {
   $("username").value = "";
   $("password").value = "";

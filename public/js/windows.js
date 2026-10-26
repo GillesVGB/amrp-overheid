@@ -7,6 +7,7 @@ export function createWindows({
   onLogout = () => {},
   onAppearance = () => {},
   getAppearance = () => ({ wallpaper: "bloom", theme: "light" }),
+  getSession = () => null,
   onSearch = () => {},
   onOpen = () => {},
   toast,
@@ -16,7 +17,8 @@ export function createWindows({
   host.append(layer);
   const windows = new Map();
   let counter = 0,
-    front = null;
+    front = null,
+    revision = null;
   const post = (entry, message) =>
     entry.frame.contentWindow?.postMessage(message, location.origin);
   function focus(entry) {
@@ -188,6 +190,9 @@ export function createWindows({
       entry.ready = true;
       post(entry, { type: "amrp-appearance", appearance: getAppearance() });
       post(entry, { type: "amrp-visibility", visible: !entry.element.hidden });
+      const session = getSession();
+      if (session) post(entry, { type: "amrp-session", session });
+      if (revision !== null) post(entry, { type: "amrp-changes", revision });
       if (entry.pending)
         post(entry, { type: "amrp-navigate", result: entry.pending });
     }
@@ -223,6 +228,15 @@ export function createWindows({
     broadcastAppearance(appearance) {
       for (const entry of windows.values())
         if (entry.ready) post(entry, { type: "amrp-appearance", appearance });
+    },
+    broadcastSession(session) {
+      for (const entry of windows.values())
+        if (entry.ready) post(entry, { type: "amrp-session", session });
+    },
+    broadcastChanges(value) {
+      revision = value;
+      for (const entry of windows.values())
+        if (entry.ready) post(entry, { type: "amrp-changes", revision });
     },
     count(appId) {
       return [...windows.values()].filter((x) => x.app.id === appId).length;

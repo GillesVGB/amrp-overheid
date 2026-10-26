@@ -33,7 +33,7 @@ test("Profielwijzigingen gebruiken de nieuwe avatarhash; privéstatus en activit
   assert.equal(calls, 1);
   assert.deepEqual(initial[0], initial[1]);
   assert.ok(initial[0].avatarUrl.includes(".gif?size=64"));
-  time = 15001;
+  time = 60001;
   const updated = await profile();
   assert.equal(calls, 2);
   assert.ok(
@@ -76,6 +76,6 @@ test("Bij een Lanyard-storing blijven de footer en de laatst bekende avatar besc
     },
   });
   const initial = await profile();
-  time = 15001;
+  time = 60001;
   assert.deepEqual(await profile(), initial);
 });

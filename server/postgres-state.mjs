@@ -4,8 +4,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { openDatabase } from "./database.mjs";
-
-const LOCK_ID = 731904211;
+import { PORTAL_LOCK_ID as LOCK_ID } from "./postgres-lock.mjs";
 const META_TABLE = "amrp_portal_meta";
 const LEGACY_TABLE = "amrp_portal_state";
 const runtimeTables = new Set([
@@ -18,6 +17,9 @@ const runtimeTables = new Set([
   "user_preferences",
   "form_drafts",
 ]);
+// Inspected snapshots are immutable. Reuse their row digest when persistence
+// and live-update revision checks compare the same snapshot in one request.
+const tableDigests = new WeakMap();
 const identifier = (value) => '"' + String(value).replaceAll('"', '""') + '"';
 const literal = (value) => "'" + String(value).replaceAll("'", "''") + "'";
 const tableName = (name) => `"public".${identifier(name)}`;
@@ -164,6 +166,7 @@ function decodeValue(value, column) {
 }
 
 function tableDigest(table) {
+  if (tableDigests.has(table)) return tableDigests.get(table);
   const rows = table.rows
     .map((row) =>
       JSON.stringify(
@@ -171,7 +174,9 @@ function tableDigest(table) {
       ),
     )
     .sort();
-  return hash(JSON.stringify({ columns: table.columns, rows }));
+  const digest = hash(JSON.stringify({ columns: table.columns, rows }));
+  tableDigests.set(table, digest);
+  return digest;
 }
 
 function applicationDigest(snapshot) {
@@ -246,6 +251,7 @@ function restoreSqlite(file, schema, rows, sequences) {
       throw new Error(
         `Ongeldige relatie in PostgreSQL-tabel ${invalid.table}.`,
       );
+    return db.prepare("PRAGMA schema_version").get().schema_version;
   } finally {
     db.close();
   }
@@ -402,14 +408,19 @@ export async function withPostgresPortalState(config, callback, { pool } = {}) {
         `SELECT revision,sqlite_schema,sqlite_sequences FROM ${tableName(META_TABLE)} WHERE id=1`,
       )
     ).rows[0];
-    let before;
+    let before, restoredSchemaVersion;
     if (saved) {
       const rows = await loadRows(client, saved.sqlite_schema);
       if (!rows.settings?.some((row) => Number(row.id) === 1))
         throw new Error(
           "De bestaande PostgreSQL-instellingen ontbreken; automatisch opnieuw vullen is geblokkeerd.",
         );
-      restoreSqlite(file, saved.sqlite_schema, rows, saved.sqlite_sequences);
+      restoredSchemaVersion = restoreSqlite(
+        file,
+        saved.sqlite_schema,
+        rows,
+        saved.sqlite_sequences,
+      );
       const restored = new DatabaseSync(file);
       try {
         before = inspect(restored);
@@ -447,6 +458,20 @@ export async function withPostgresPortalState(config, callback, { pool } = {}) {
     const result = await callback(db, { revision });
     if (db.prepare("PRAGMA foreign_key_check").get())
       throw new Error("Een databasewijziging bevat een ongeldige relatie.");
+    // Restoring rows used a different, closed connection. Zero total_changes
+    // here therefore means neither initialization nor the callback changed data.
+    // DDL does not increment that counter, so also compare the schema version
+    // from before openDatabase: new migrations must still be persisted.
+    if (
+      saved &&
+      db.prepare("SELECT total_changes() AS count").get().count === 0 &&
+      db.prepare("PRAGMA schema_version").get().schema_version ===
+        restoredSchemaVersion
+    ) {
+      await client.query("COMMIT");
+      transactionOpen = false;
+      return result;
+    }
     const after = inspect(db);
     const schemaChanged =
       !saved || stableJson(saved.sqlite_schema) !== stableJson(after.schema);

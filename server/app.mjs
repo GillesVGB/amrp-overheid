@@ -41,6 +41,7 @@ import { installWorkspace } from "./workspace.mjs";
 import { installMeosProfile } from "./meos-profile.mjs";
 import { createCreatorProfile } from "./creator-profile.mjs";
 import { installMaintenance } from "./maintenance.mjs";
+import { installNotifications } from "./notifications.mjs";
 const publicDir = fileURLToPath(new URL("../public/", import.meta.url));
 export async function createApp(config, options = {}) {
   const db = options.db || openDatabase(config),
@@ -77,6 +78,7 @@ export async function createApp(config, options = {}) {
   const auth = authentication({ db, config, ...options });
   auth.install(app);
   installMaintenance(app, { db, auth, config });
+  installNotifications(app, { db, auth });
   const creatorProfile = createCreatorProfile({
     request: options.creatorRequest || fetch,
   });

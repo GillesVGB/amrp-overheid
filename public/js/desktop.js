@@ -4,6 +4,7 @@ import { createApi } from "./api.js";
 import { createAmbulance } from "./ambulance.js";
 import { createWorkspace } from "./workspace.js";
 import { createWindows } from "./windows.js";
+import { createNotificationCenter } from "./notification-center.js";
 import {
   wallpaperOptions,
   themeOptions,
@@ -15,6 +16,7 @@ const embedded =
   parent !== window &&
   new URLSearchParams(location.search).get("window") === "1";
 let windowManager = null,
+  notificationCenter = null,
   embeddedVisible = true;
 if (embedded) document.body.classList.add("app-window-embedded");
 let me = null,
@@ -656,9 +658,7 @@ $("clock-button").addEventListener("click", () =>
   ),
 );
 $("notifications-button").addEventListener("click", () =>
-  toast(
-    "Je rechten worden op de server gecontroleerd. Wijzigingen worden direct gedeeld opgeslagen.",
-  ),
+  notificationCenter?.toggle(),
 );
 $("quick-settings-button").addEventListener("click", () => {
   const panel = $("quick-settings"),
@@ -687,21 +687,42 @@ window.addEventListener("offline", () => {
   $("network-state").textContent = "Offline";
   $("network-detail").textContent = "Geen internetverbinding";
 });
-async function checkSession() {
-  if (!me || document.hidden) return;
+let sessionBusy = false,
+  lastSessionCheck = 0;
+async function applySession(updated) {
+  if (!me || !updated?.user?.id) return;
+  if (updated.user.id !== me.user.id) {
+    lockScreen("Je sessie is gewijzigd. Meld je opnieuw aan.");
+    return;
+  }
+  const changed =
+    JSON.stringify(updated.permissions) !== JSON.stringify(me.permissions) ||
+    updated.maintenance?.enabled !== me.maintenance?.enabled ||
+    updated.user.mustChange !== me.user.mustChange;
+  me = updated;
+  windowManager?.broadcastSession(updated);
+  if (changed) {
+    windowManager?.prune(apps().map((a) => a.id));
+    renderDesktop();
+    if (embedded) await launch(homeApp());
+    else if (me.maintenance?.enabled) await launch("admin");
+    toast("Je toegangsrechten zijn bijgewerkt.");
+  }
+}
+async function checkSession({ force = false } = {}) {
+  if (
+    embedded ||
+    !me ||
+    document.hidden ||
+    sessionBusy ||
+    (!force && Date.now() - lastSessionCheck < 60000)
+  )
+    return;
+  sessionBusy = true;
+  lastSessionCheck = Date.now();
   try {
     const updated = await api("/api/me");
-    if (
-      JSON.stringify(updated.permissions) !== JSON.stringify(me.permissions) ||
-      updated.maintenance?.enabled !== me.maintenance?.enabled
-    ) {
-      me = updated;
-      windowManager?.prune(apps().map((a) => a.id));
-      renderDesktop();
-      if (embedded) await launch(homeApp());
-      else if (me.maintenance?.enabled) await launch("admin");
-      toast("Je toegangsrechten zijn bijgewerkt.");
-    }
+    await applySession(updated);
   } catch (error) {
     if ([401, 403].includes(error.status)) lockScreen(error.message);
     else
@@ -709,36 +730,65 @@ async function checkSession() {
         "Je rechten kunnen nu niet worden gecontroleerd. Heropen de applicatie zodra de verbinding terug is.",
         true,
       );
+  } finally {
+    sessionBusy = false;
   }
 }
-setInterval(checkSession, 60000);
 let sharedRevision = null,
-  polling = false;
-async function checkChanges() {
+  pendingRevision = null,
+  applyingRevision = false,
+  polling = false,
+  lastChangesCheck = 0;
+async function applyRevision(revision) {
+  if (typeof revision !== "string") return;
+  pendingRevision = revision;
+  if (sharedRevision === null) {
+    sharedRevision = revision;
+    return;
+  }
   if (
-    windowManager ||
+    revision === sharedRevision ||
     !embeddedVisible ||
     !me ||
     me.user.mustChange ||
     document.hidden ||
-    polling
+    applyingRevision ||
+    $("dialog").open ||
+    document.querySelector(".ws-dialog[open]")
+  )
+    return;
+  applyingRevision = true;
+  try {
+    let refreshed = true;
+    if (workspace) refreshed = await workspace.refresh();
+    else if (portal) refreshed = await portal.refresh();
+    else if (ambulance) refreshed = await ambulance.refresh();
+    if (refreshed !== false) sharedRevision = revision;
+  } finally {
+    applyingRevision = false;
+  }
+  if (pendingRevision !== revision) await applyRevision(pendingRevision);
+}
+async function checkChanges() {
+  if (
+    embedded ||
+    !me ||
+    me.user.mustChange ||
+    document.hidden ||
+    polling ||
+    Date.now() - lastChangesCheck < 60000
   )
     return;
   polling = true;
+  lastChangesCheck = Date.now();
   try {
     const { revision } = await api("/api/changes");
-    if (sharedRevision === null) {
+    if (windowManager) {
+      const changed = sharedRevision !== null && revision !== sharedRevision;
       sharedRevision = revision;
-      return;
-    }
-    if (revision !== sharedRevision) {
-      if ($("dialog").open) return;
-      let refreshed = true;
-      if (workspace) refreshed = await workspace.refresh();
-      else if (portal) refreshed = await portal.refresh();
-      else if (ambulance) refreshed = await ambulance.refresh();
-      if (refreshed !== false) sharedRevision = revision;
-    }
+      windowManager.broadcastChanges(revision);
+      if (changed) await notificationCenter?.refresh(true);
+    } else await applyRevision(revision);
     $("notifications-button").title =
       "Live verbonden · gecontroleerd " +
       new Date().toLocaleTimeString("nl-NL", {
@@ -752,8 +802,23 @@ async function checkChanges() {
     polling = false;
   }
 }
-setInterval(checkChanges, 10000);
-window.addEventListener("focus", checkChanges);
+if (!embedded) {
+  // The desktop owns these requests; app documents receive its revision/session.
+  setInterval(checkSession, 300000);
+  setInterval(checkChanges, 60000);
+  window.addEventListener("focus", () => {
+    checkSession();
+    checkChanges();
+  });
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  if (embedded) applyRevision(pendingRevision).catch(() => {});
+  else {
+    checkSession();
+    checkChanges();
+  }
+});
 document.addEventListener("keydown", (event) => {
   if (
     event.ctrlKey &&
@@ -770,9 +835,12 @@ document.addEventListener("keydown", (event) => {
     $("start-search-input").focus();
   }
 });
-window.addEventListener("focus", checkSession);
-window.addEventListener("amrp-maintenance-state", () => {
-  if (me) checkSession();
+window.addEventListener("amrp-maintenance-state", (event) => {
+  if (!me || embedded) return;
+  // The desktop handles maintenance via its authoritative session check.
+  if (event.detail?.enabled) event.preventDefault();
+  if (Boolean(event.detail?.enabled) !== Boolean(me.maintenance?.enabled))
+    checkSession({ force: true });
 });
 if (embedded) {
   document.addEventListener("pointerdown", () =>
@@ -791,8 +859,11 @@ if (embedded) {
       setAppearance(message.appearance, false);
     if (message.type === "amrp-visibility") {
       embeddedVisible = message.visible === true;
-      if (embeddedVisible) checkChanges();
+      if (embeddedVisible) await applyRevision(pendingRevision);
     }
+    if (message.type === "amrp-changes")
+      await applyRevision(message.revision).catch(() => {});
+    if (message.type === "amrp-session") await applySession(message.session);
     if (message.type === "amrp-close") {
       portal?.destroy?.();
       workspace?.destroy();
@@ -814,6 +885,7 @@ if (embedded) {
 fillIcons();
 try {
   me = await api("/api/me");
+  lastSessionCheck = Date.now();
   try {
     localStorage.setItem("amrp-last-username", me.user.username);
   } catch {
@@ -832,6 +904,7 @@ try {
       onLogout: lockScreen,
       onOpen: (appId) => launch(appId),
       getAppearance: () => currentAppearance,
+      getSession: () => me,
       onAppearance: (value) => setAppearance(value),
       onSearch: () => {
         toggleStart(true);
@@ -839,6 +912,12 @@ try {
       },
     });
   await enter();
+  if (!embedded && !me.user.mustChange)
+    notificationCenter = createNotificationCenter({
+      api,
+      onOpen: (app) => launch(app),
+      poll: false,
+    });
   if (embedded) parent.postMessage({ type: "amrp-ready" }, location.origin);
   await checkChanges();
 } catch (error) {
